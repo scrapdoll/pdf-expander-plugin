@@ -199,13 +199,14 @@ export class ReaderController extends Component {
 	}
 
 	private setZoomMode(mode: ZoomMode): void {
-		this.zoom.setMode(
-			mode,
-			this.pdf.getCurrentPage(),
-			this.pdf.getPageCount(),
-		);
+		const page = this.pdf.getCurrentPage();
+		const pageCount = this.pdf.getPageCount();
+		if (this.position === null) {
+			this.zoom.setMode(mode, page, pageCount);
+		} else {
+			this.position.setUserZoomMode(mode, page, pageCount);
+		}
 		this.updateOverlay();
-		this.position?.scheduleSave();
 		this.showControls();
 	}
 

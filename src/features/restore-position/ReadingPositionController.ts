@@ -1,10 +1,16 @@
 import type { PdfViewerAdapter } from '../../pdf/PdfViewerAdapter';
 import type { ReaderDataStore } from '../../reader/ReaderDataStore';
+import type { ZoomMode } from '../../reader/ReaderSettings';
 import type { ZoomController } from '../zoom/ZoomController';
 
 interface PendingPositionRestore {
 	page: number;
 	offset: number;
+}
+
+interface PendingZoomOverride {
+	mode: ZoomMode;
+	customZoom?: number;
 }
 
 const POSITION_SAVE_DEBOUNCE_MS = 300;
@@ -15,6 +21,7 @@ export class ReadingPositionController {
 	private saveTimer: number | null = null;
 	private restoreFrame: number | null = null;
 	private pendingRestore: PendingPositionRestore | null = null;
+	private pendingZoomOverride: PendingZoomOverride | null = null;
 
 	constructor(
 		private readonly pdf: PdfViewerAdapter,
@@ -26,6 +33,23 @@ export class ReadingPositionController {
 
 	get isRestored(): boolean {
 		return this.restored;
+	}
+
+	setUserZoomMode(
+		mode: ZoomMode,
+		page: number,
+		pageCount: number,
+		customZoom?: number,
+	): void {
+		if (!this.restored) {
+			this.pendingZoomOverride = {
+				mode,
+				...(customZoom === undefined ? {} : { customZoom }),
+			};
+		}
+
+		this.zoom.setMode(mode, page, pageCount, customZoom);
+		this.scheduleSave();
 	}
 
 	handlePositionChange(page: number): void {
@@ -52,7 +76,16 @@ export class ReadingPositionController {
 		const savedState = this.store.settings.rememberPosition
 			? this.store.getDocumentState(this.documentPath)
 			: null;
-		const mode = savedState?.zoomMode ?? this.store.settings.defaultZoomMode;
+		const pendingZoomOverride = this.pendingZoomOverride;
+		this.pendingZoomOverride = null;
+		const mode =
+			pendingZoomOverride?.mode ??
+			savedState?.zoomMode ??
+			this.store.settings.defaultZoomMode;
+		const customZoom =
+			pendingZoomOverride === null
+				? savedState?.customZoom
+				: pendingZoomOverride.customZoom;
 		const currentPage = this.pdf.getCurrentPage();
 		const savedPage = clampPage(savedState?.page ?? currentPage, pageCount);
 		const explicitPage = this.getExplicitPage();
@@ -69,8 +102,11 @@ export class ReadingPositionController {
 		}
 
 		this.lastPage = currentPage;
-		this.zoom.setMode(mode, targetPage, pageCount, savedState?.customZoom);
+		this.zoom.setMode(mode, targetPage, pageCount, customZoom);
 		this.tryRestorePageOffset();
+		if (pendingZoomOverride !== null) {
+			this.scheduleSave();
+		}
 	}
 
 	scheduleSave(): void {
