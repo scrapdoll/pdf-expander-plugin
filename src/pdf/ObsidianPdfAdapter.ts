@@ -71,8 +71,14 @@ function readPath(root: unknown, path: readonly string[]): unknown {
 }
 
 function positiveInteger(value: unknown): number | null {
-	return typeof value === 'number' && Number.isFinite(value) && value >= 1
-		? Math.floor(value)
+	const numericValue =
+		typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+	return (
+		typeof numericValue === 'number' &&
+		Number.isFinite(numericValue) &&
+		numericValue >= 1
+	)
+		? Math.floor(numericValue)
 		: null;
 }
 

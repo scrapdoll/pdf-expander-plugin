@@ -71,9 +71,10 @@ function estimateBackground(raster: PdfPageRaster): RgbColor {
 
 	for (const [x, y] of points) {
 		const index = (y * width + x) * 4;
-		red += data[index] ?? 255;
-		green += data[index + 1] ?? 255;
-		blue += data[index + 2] ?? 255;
+		const color = compositeOnWhite(data, index);
+		red += color.red;
+		green += color.green;
+		blue += color.blue;
 	}
 
 	return {
@@ -88,14 +89,7 @@ function isContentPixel(
 	index: number,
 	background: RgbColor,
 ): boolean {
-	const alpha = data[index + 3] ?? 0;
-	if (alpha < 16) {
-		return false;
-	}
-
-	const red = data[index] ?? background.red;
-	const green = data[index + 1] ?? background.green;
-	const blue = data[index + 2] ?? background.blue;
+	const { red, green, blue } = compositeOnWhite(data, index);
 	const colorDistance = Math.max(
 		Math.abs(red - background.red),
 		Math.abs(green - background.green),
@@ -112,6 +106,19 @@ function isContentPixel(
 		Math.abs(luminance - backgroundLuminance) >=
 			LUMINANCE_DISTANCE_THRESHOLD
 	);
+}
+
+function compositeOnWhite(
+	data: Uint8ClampedArray,
+	index: number,
+): RgbColor {
+	const alpha = (data[index + 3] ?? 0) / 255;
+	const inverseAlpha = 1 - alpha;
+	return {
+		red: (data[index] ?? 0) * alpha + 255 * inverseAlpha,
+		green: (data[index + 1] ?? 0) * alpha + 255 * inverseAlpha,
+		blue: (data[index + 2] ?? 0) * alpha + 255 * inverseAlpha,
+	};
 }
 
 function findStart(values: Uint32Array, threshold: number): number | null {

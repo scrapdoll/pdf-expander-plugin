@@ -10,6 +10,7 @@ const RASTER_MAX_DIMENSION = 384;
 const VIEWPORT_PADDING = 24;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 10;
+const ZOOM_RELATIVE_TOLERANCE = 0.005;
 
 export class FitContentController {
 	private readonly detector = new CropDetector();
@@ -56,8 +57,13 @@ export class FitContentController {
 			Math.max((currentZoom * availableWidth) / contentWidth, MIN_ZOOM),
 			MAX_ZOOM,
 		);
-		this.pdf.setZoom(targetZoom);
-		this.scheduleAlignment(page, crop);
+		const zoomChanges =
+			Math.abs(targetZoom - currentZoom) / currentZoom >
+			ZOOM_RELATIVE_TOLERANCE;
+		if (zoomChanges) {
+			this.pdf.setZoom(targetZoom);
+		}
+		this.scheduleAlignment(page, crop, zoomChanges);
 		return true;
 	}
 
@@ -120,6 +126,7 @@ export class FitContentController {
 	private scheduleAlignment(
 		page: number,
 		crop: CropBox,
+		waitForZoom: boolean,
 	): void {
 		const ownerWindow =
 			this.pdf.getViewContainer().ownerDocument.defaultView ?? window;
@@ -132,6 +139,10 @@ export class FitContentController {
 
 		this.firstAlignmentFrame = ownerWindow.requestAnimationFrame(() => {
 			this.firstAlignmentFrame = null;
+			if (!waitForZoom) {
+				this.pdf.alignPageRegion(page, crop);
+				return;
+			}
 			this.secondAlignmentFrame = ownerWindow.requestAnimationFrame(() => {
 				this.secondAlignmentFrame = null;
 				this.pdf.alignPageRegion(page, crop);

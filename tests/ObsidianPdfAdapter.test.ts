@@ -93,4 +93,31 @@ describe('ObsidianPdfAdapter private boundary', () => {
 
 		expect(adapter.getPageCount()).toBe(401);
 	});
+
+	it('resolves PDF.js pages whose data-page-number is a string', () => {
+		const pageElement = {
+			dataset: { pageNumber: '28' },
+			getBoundingClientRect: () => ({ width: 800, height: 1200 }),
+		};
+		const scrollContainer = {
+			clientWidth: 1000,
+			clientHeight: 700,
+		};
+		const viewContainer = {
+			querySelector: (selector: string) =>
+				selector === '.pdf-viewer-container' ? scrollContainer : null,
+			querySelectorAll: () => [pageElement],
+		};
+		const leaf = {
+			view: { containerEl: viewContainer },
+		} as unknown as WorkspaceLeaf;
+		const adapter = new ObsidianPdfAdapter(leaf);
+
+		expect(adapter.getPageGeometry(28)).toEqual({
+			pageWidth: 800,
+			pageHeight: 1200,
+			viewportWidth: 1000,
+			viewportHeight: 700,
+		});
+	});
 });

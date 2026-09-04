@@ -1,6 +1,6 @@
 {
 	"name": "pdf-plugin-expander",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "A focused reading experience for Obsidian's native PDF viewer",
 	"main": "main.js",
 	"type": "module",

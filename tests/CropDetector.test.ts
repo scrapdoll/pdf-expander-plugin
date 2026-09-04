@@ -33,19 +33,31 @@ describe('CropDetector', () => {
 		expect(crop?.left).toBeLessThan(0.16);
 		expect(crop?.right).toBeGreaterThan(0.84);
 	});
+
+	it('detects opaque text on a transparent PDF canvas', () => {
+		const raster = createRaster(100, 120, 0, 0);
+		paintRectangle(raster, 20, 15, 80, 100, 20);
+
+		const crop = new CropDetector().detect(raster);
+
+		expect(crop).not.toBeNull();
+		expect(crop?.left).toBeCloseTo(0.185, 2);
+		expect(crop?.right).toBeCloseTo(0.815, 2);
+	});
 });
 
 function createRaster(
 	width: number,
 	height: number,
 	value: number,
+	alpha = 255,
 ): PdfPageRaster {
 	const data = new Uint8ClampedArray(width * height * 4);
 	for (let index = 0; index < data.length; index += 4) {
 		data[index] = value;
 		data[index + 1] = value;
 		data[index + 2] = value;
-		data[index + 3] = 255;
+		data[index + 3] = alpha;
 	}
 	return { width, height, data };
 }

@@ -1,7 +1,7 @@
 {
 	"id": "pdf-plugin-expander",
 	"name": "PDF Reader",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"minAppVersion": "1.7.2",
 	"description": "Adds a focused reading experience to Obsidian's native PDF viewer.",
 	"isDesktopOnly": false
