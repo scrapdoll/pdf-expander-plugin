@@ -14,6 +14,7 @@ interface EventBusLike extends UnknownRecord {
 	off?: (name: string, callback: () => void) => void;
 	_on?: (name: string, callback: () => void) => void;
 	_off?: (name: string, callback: () => void) => void;
+	dispatch?: (name: string, detail: UnknownRecord) => void;
 }
 
 const PDF_VIEWER_PATHS = [
@@ -120,11 +121,6 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 			return toolbarCount;
 		}
 
-		const pageElements = this.getPageElements();
-		if (pageElements.length > 0) {
-			return pageElements.length;
-		}
-
 		const viewer = this.getInternalPdfViewer();
 		const internalCount = positiveInteger(viewer?.pagesCount);
 		if (internalCount !== null) {
@@ -139,7 +135,16 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 		}
 
 		const internalPages = viewer?._pages ?? viewer?.pages;
-		return Array.isArray(internalPages) ? internalPages.length : 0;
+		if (Array.isArray(internalPages)) {
+			return internalPages.length;
+		}
+
+		const pageElements = this.getPageElements();
+		if (pageElements.length > 0) {
+			return pageElements.length;
+		}
+
+		return 0;
 	}
 
 	goToPage(page: number): void {
@@ -148,21 +153,30 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 		}
 
 		const targetPage = this.clampPage(Math.round(page));
-		const pageElement = this.getPageElement(targetPage);
-		if (pageElement !== null) {
-			pageElement.scrollIntoView({ block: 'start', inline: 'nearest' });
+		if (
+			this.dispatchViewerCommand('pagenumberchanged', {
+				source: this,
+				value: String(targetPage),
+			})
+		) {
 			return;
 		}
 
 		const viewer = this.getInternalPdfViewer();
+		if (viewer !== null && 'currentPageNumber' in viewer) {
+			viewer.currentPageNumber = targetPage;
+			return;
+		}
+
 		const scrollPageIntoView = viewer?.scrollPageIntoView;
 		if (typeof scrollPageIntoView === 'function') {
 			scrollPageIntoView.call(viewer, { pageNumber: targetPage });
 			return;
 		}
 
-		if (viewer !== null && 'currentPageNumber' in viewer) {
-			viewer.currentPageNumber = targetPage;
+		const pageElement = this.getPageElement(targetPage);
+		if (pageElement !== null) {
+			pageElement.scrollIntoView({ block: 'start', inline: 'nearest' });
 		}
 	}
 
@@ -186,6 +200,14 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 		if (!Number.isFinite(value) || value <= 0) {
 			return;
 		}
+		if (
+			this.dispatchViewerCommand('scalechanged', {
+				source: this,
+				value: String(value),
+			})
+		) {
+			return;
+		}
 
 		const viewer = this.getInternalPdfViewer();
 		if (viewer === null) {
@@ -203,6 +225,15 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 	}
 
 	setNativeZoomMode(mode: NativePdfZoomMode): boolean {
+		if (
+			this.dispatchViewerCommand('scalechanged', {
+				source: this,
+				value: mode,
+			})
+		) {
+			return true;
+		}
+
 		const viewer = this.getInternalPdfViewer();
 		if (viewer === null || !('currentScaleValue' in viewer)) {
 			return false;
@@ -493,6 +524,24 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 	private getEventBus(): EventBusLike | null {
 		const eventBus = this.getInternalPdfViewer()?.eventBus;
 		return isRecord(eventBus) ? eventBus : null;
+	}
+
+	private dispatchViewerCommand(
+		name: string,
+		detail: UnknownRecord,
+	): boolean {
+		const eventBus = this.getEventBus();
+		if (typeof eventBus?.dispatch !== 'function') {
+			return false;
+		}
+
+		try {
+			eventBus.dispatch.call(eventBus, name, detail);
+			return true;
+		} catch (error) {
+			console.debug(`PDF Reader: Native ${name} command failed`, error);
+			return false;
+		}
 	}
 
 	private addEventBusListener(

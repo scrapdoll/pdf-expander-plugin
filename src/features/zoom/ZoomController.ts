@@ -78,7 +78,7 @@ export class ZoomController {
 	}
 
 	private fitPage(page: number): void {
-		if (this.pdf.setNativeZoomMode('page-fit')) {
+		if (this.pdf.setNativeZoomMode('page-height')) {
 			return;
 		}
 

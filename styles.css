@@ -111,6 +111,21 @@
 	}
 }
 
+.is-phone .pdf-reader-overlay {
+	bottom: calc(
+		var(--navbar-height, 80px) +
+			var(--navbar-bottom-offset, var(--size-4-3)) + var(--size-4-2)
+	);
+}
+
+.is-phone.is-hidden-nav .pdf-reader-overlay,
+.is-phone .is-hidden-nav .pdf-reader-overlay {
+	bottom: max(
+		var(--size-4-2),
+		var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+	);
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.pdf-reader-overlay {
 		transition: none;

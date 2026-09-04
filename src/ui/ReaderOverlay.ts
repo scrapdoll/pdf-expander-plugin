@@ -19,6 +19,8 @@ export class ReaderOverlay {
 	private menuButton: HTMLButtonElement | null = null;
 	private visible = true;
 	private dragging = false;
+	private dragPointerId: number | null = null;
+	private dragPointerType: string | null = null;
 	private pendingScrubPage: number | null = null;
 	private scrubFrame: number | null = null;
 	private activeMenu: Menu | null = null;
@@ -44,6 +46,8 @@ export class ReaderOverlay {
 		controls.className = 'pdf-reader-controls';
 		controls.addEventListener('click', stopPropagation);
 		controls.addEventListener('pointerdown', stopPropagation);
+		controls.addEventListener('pointerup', stopPropagation);
+		controls.addEventListener('pointercancel', stopPropagation);
 		controls.addEventListener('pointerenter', (event) => {
 			if (event.pointerType === 'mouse') {
 				this.actions.onInteractionChange(true);
@@ -70,20 +74,30 @@ export class ReaderOverlay {
 		scrubber.value = '1';
 		scrubber.disabled = true;
 		scrubber.setAttribute('aria-label', 'PDF page');
-		scrubber.addEventListener('pointerdown', () => {
+		scrubber.addEventListener('pointerdown', (event) => {
 			this.dragging = true;
+			this.dragPointerId = event.pointerId;
+			this.dragPointerType = event.pointerType;
+			try {
+				scrubber.setPointerCapture(event.pointerId);
+			} catch {
+				// Older mobile WebViews may not support capture on range inputs.
+			}
 			this.actions.onInteractionChange(true);
 		});
-		scrubber.addEventListener('pointerup', () => this.endInteraction());
-		scrubber.addEventListener('pointercancel', () => this.endInteraction());
-		scrubber.addEventListener('change', () => this.endInteraction());
+		scrubber.addEventListener('pointerup', () => this.finishScrub(true));
+		scrubber.addEventListener('pointercancel', () => this.finishScrub(false));
+		scrubber.addEventListener('change', () => this.finishScrub(true));
 		scrubber.addEventListener('input', () => {
 			const targetPage = Number.parseInt(scrubber.value, 10);
 			if (Number.isFinite(targetPage)) {
 				if (this.pageElement !== null) {
 					this.pageElement.textContent = `${targetPage} / ${scrubber.max}`;
 				}
-				this.scheduleScrub(targetPage);
+				this.pendingScrubPage = targetPage;
+				if (!(this.dragging && this.dragPointerType === 'touch')) {
+					this.scheduleScrub();
+				}
 			}
 		});
 
@@ -163,6 +177,8 @@ export class ReaderOverlay {
 		this.scrubberElement = null;
 		this.menuButton = null;
 		this.dragging = false;
+		this.dragPointerId = null;
+		this.dragPointerType = null;
 		this.pendingScrubPage = null;
 		if (this.scrubFrame !== null) {
 			const ownerWindow = this.container.ownerDocument.defaultView ?? window;
@@ -171,13 +187,30 @@ export class ReaderOverlay {
 		}
 	}
 
-	private endInteraction(): void {
+	private finishScrub(commit: boolean): void {
+		const scrubber = this.scrubberElement;
+		if (scrubber !== null && this.dragPointerId !== null) {
+			try {
+				if (scrubber.hasPointerCapture(this.dragPointerId)) {
+					scrubber.releasePointerCapture(this.dragPointerId);
+				}
+			} catch {
+				// Pointer capture is best-effort on mobile range controls.
+			}
+		}
+
 		this.dragging = false;
+		this.dragPointerId = null;
+		this.dragPointerType = null;
+		if (commit) {
+			this.flushScrub();
+		} else {
+			this.cancelScrub();
+		}
 		this.actions.onInteractionChange(false);
 	}
 
-	private scheduleScrub(page: number): void {
-		this.pendingScrubPage = page;
+	private scheduleScrub(): void {
 		if (this.scrubFrame !== null) {
 			return;
 		}
@@ -191,6 +224,30 @@ export class ReaderOverlay {
 				this.actions.onScrub(targetPage);
 			}
 		});
+	}
+
+	private flushScrub(): void {
+		this.cancelScrubFrame();
+		const targetPage = this.pendingScrubPage;
+		this.pendingScrubPage = null;
+		if (targetPage !== null) {
+			this.actions.onScrub(targetPage);
+		}
+	}
+
+	private cancelScrub(): void {
+		this.cancelScrubFrame();
+		this.pendingScrubPage = null;
+	}
+
+	private cancelScrubFrame(): void {
+		if (this.scrubFrame === null) {
+			return;
+		}
+
+		const ownerWindow = this.container.ownerDocument.defaultView ?? window;
+		ownerWindow.cancelAnimationFrame(this.scrubFrame);
+		this.scrubFrame = null;
 	}
 
 	private openDisplayMenu(event: MouseEvent): void {
