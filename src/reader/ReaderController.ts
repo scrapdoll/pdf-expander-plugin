@@ -67,6 +67,7 @@ export class ReaderController extends Component {
 				toggleControls: () => this.toggleControls(),
 				areControlsVisible: () => this.overlay.isVisible(),
 			},
+			() => this.zoom.currentMode === 'fit-content',
 		);
 	}
 
@@ -91,10 +92,11 @@ export class ReaderController extends Component {
 		this.addChild(this.navigation);
 		this.register(
 			this.pdf.onPositionChange((page) => {
-				this.updateOverlay();
 				this.position?.handlePositionChange(page);
+				this.updateOverlay();
 			}),
 		);
+		this.updateOverlay();
 		this.showControls();
 	}
 
@@ -103,7 +105,10 @@ export class ReaderController extends Component {
 		this.zoom.dispose();
 		this.overlay.detach();
 		this.autoHide.dispose();
-		this.viewContainer.classList.remove('pdf-reader-focus-mode');
+		this.viewContainer.classList.remove(
+			'pdf-reader-focus-mode',
+			'pdf-reader-fit-content',
+		);
 	}
 
 	nextPage(): void {
@@ -211,6 +216,10 @@ export class ReaderController extends Component {
 	}
 
 	private updateOverlay(): void {
+		this.viewContainer.classList.toggle(
+			'pdf-reader-fit-content',
+			this.zoom.currentMode === 'fit-content',
+		);
 		this.overlay.update(
 			this.pdf.getCurrentPage(),
 			this.pdf.getPageCount(),

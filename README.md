@@ -12,7 +12,8 @@ It does not replace the renderer, modify PDF files, or use a separate database.
   navigation history.
 - Keyboard navigation with arrow keys, Page Up, Page Down, Home, and End.
 - Mobile tap zones and conflict-aware horizontal swipes. Text selection,
-  links, native controls, pinch zoom, and horizontal panning take priority.
+  links, native controls, and pinch zoom take priority; Fit Content locks
+  horizontal panning so the page stays fixed while reading.
 - Debounced per-document page, page-offset, zoom-mode, and crop-profile state.
 - Standard Obsidian links to a PDF or its current `#page=N` subpath.
 - Native Fit Page and Fit Width modes.
@@ -61,6 +62,44 @@ npm run lint
 The production build writes `main.js` at the plugin root. Reload Obsidian after
 building and enable **PDF Reader** under **Settings → Community plugins**.
 
+### Desktop mobile smoke test
+
+The smoke test drives the real desktop Obsidian PDF viewer through the local
+Chromium debugging protocol. It enables Obsidian's mobile mode, applies a
+390x844 touch viewport, selects **Fit content**, performs a short horizontal
+touch movement, and verifies that the page and horizontal reading position do
+not change.
+
+Close Obsidian, start it from PowerShell with a local debugging port, and open
+a PDF in the active tab:
+
+```powershell
+Start-Process -FilePath "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe" `
+	-ArgumentList "--remote-debugging-address=127.0.0.1", `
+		"--remote-debugging-port=9222"
+```
+
+Then run with the expected vault and active PDF path:
+
+```powershell
+npm.cmd run test:mobile -- `
+	--vault "ai-use-development-research" `
+	--file "Content Log/Books/Грокаем алгоритмы/Grokaem_algoritmy_2.pdf"
+```
+
+Screenshots plus JSON and HTML reports are written under
+`test-results/mobile-smoke/`. The script restores normal desktop metrics and
+disables mobile emulation before disconnecting. Keep the debugging port local
+and close the test instance when it is no longer needed. The script stops
+without sending touch input if the connected vault or active file differs from
+the requested target.
+
+Optional viewport and drift settings can be inspected with:
+
+```bash
+npm run test:mobile -- --help
+```
+
 ## Release
 
 Keep the version in `package.json`, `manifest.json`, and `versions.json` in sync,
@@ -89,5 +128,6 @@ After reloading Obsidian:
    position.
 5. Close one PDF leaf and disable the plugin; confirm injected controls and
    focus-mode classes are removed.
-6. Repeat the mobile checks in portrait and landscape and verify pinch zoom and
-   horizontal panning still take priority over swipe navigation.
+6. Repeat the mobile checks in portrait and landscape. Verify pinch zoom and
+   vertical scrolling in Fit Content, and verify horizontal swipes navigate
+   pages without horizontal drift.

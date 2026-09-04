@@ -1,6 +1,7 @@
 import { Component } from 'obsidian';
 import type { PdfViewerAdapter } from '../../pdf/PdfViewerAdapter';
 import type { ReaderSettings } from '../../reader/ReaderSettings';
+import { hasAvailableHorizontalPan } from './HorizontalPan';
 
 interface NavigationActions {
 	nextPage(): void;
@@ -31,6 +32,7 @@ export class NavigationController extends Component {
 		private readonly pdf: PdfViewerAdapter,
 		private readonly getSettings: () => Readonly<ReaderSettings>,
 		private readonly actions: NavigationActions,
+		private readonly isHorizontalPanLocked: () => boolean = () => false,
 	) {
 		super();
 	}
@@ -203,7 +205,11 @@ export class NavigationController extends Component {
 		const scrollContainer = this.pdf.getScrollContainer();
 		return (
 			scrollContainer !== null &&
-			scrollContainer.scrollWidth > scrollContainer.clientWidth + 4
+			hasAvailableHorizontalPan(
+				scrollContainer.scrollWidth,
+				scrollContainer.clientWidth,
+				this.isHorizontalPanLocked(),
+			)
 		);
 	}
 }

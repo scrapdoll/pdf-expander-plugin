@@ -126,6 +126,14 @@
 	);
 }
 
+:is(.is-mobile, .is-phone)
+	.pdf-reader-enhanced.pdf-reader-fit-content
+	.pdf-viewer-container {
+	overflow-x: hidden;
+	overscroll-behavior-x: none;
+	touch-action: pan-y pinch-zoom;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.pdf-reader-overlay {
 		transition: none;

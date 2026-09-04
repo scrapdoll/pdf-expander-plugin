@@ -15,6 +15,9 @@ main.js
 # Exclude sourcemaps
 *.map
 
+# Local mobile smoke-test evidence
+test-results/
+
 # obsidian
 data.json
 
