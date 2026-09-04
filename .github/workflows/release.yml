@@ -24,7 +24,12 @@ jobs:
             - name: Build plugin
               run: |
                   npm ci
+                  npm test
+                  npm run lint
                   npm run build
+
+            - name: Verify release metadata
+              run: npm run verify:release -- "$GITHUB_REF_NAME"
 
             - name: Check for optional styles
               id: styles
@@ -36,6 +41,7 @@ jobs:
               with:
                   subject-path: |
                       main.js
+                      manifest.json
                       ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
 
             - name: Create release
@@ -46,5 +52,6 @@ jobs:
 
                   gh release create "$tag" \
                     --title="$tag" \
-                    --draft \
+                    --generate-notes \
+                    --verify-tag \
                     main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}

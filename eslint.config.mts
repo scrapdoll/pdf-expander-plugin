@@ -21,7 +21,11 @@ export default defineConfig(
 			},
 			parserOptions: {
 				projectService: {
-					allowDefaultProject: ['eslint.config.mts', 'manifest.json'],
+					allowDefaultProject: [
+						'eslint.config.mts',
+						'manifest.json',
+						'scripts/*.mjs',
+					],
 				},
 				tsconfigRootDir: import.meta.dirname,
 				extraFileExtensions: ['.json'],
@@ -29,4 +33,25 @@ export default defineConfig(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		files: ['tests/**/*.ts'],
+		rules: {
+			'obsidianmd/prefer-create-el': 'off',
+		},
+	},
+	{
+		files: ['scripts/**/*.mjs'],
+		languageOptions: {
+			globals: globals.node,
+		},
+		rules: {
+			'obsidianmd/no-nodejs-modules': 'off',
+		},
+	},
+	{
+		rules: {
+			// Declarative settings require Obsidian 1.13; keep the 1.7-compatible tab.
+			'obsidianmd/settings-tab/prefer-setting-definitions': 'off',
+		},
+	},
 );
