@@ -8,6 +8,21 @@ afterEach(() => {
 });
 
 describe('Fit Content on slow mobile viewers', () => {
+	it('holds the mobile x position after fitting and releases it in Native mode', () => {
+		const h = harness(undefined, true);
+		h.ready = true;
+		h.zoom.setMode('fit-content', 1, 10);
+		vi.advanceTimersByTime(500);
+		h.scroll.scrollTop = 800;
+		h.scroll.scrollLeft = 0;
+		h.scroll.dispatchEvent(new Event('scroll'));
+		expect(h.scroll.scrollLeft).toBe(30);
+		expect(h.scroll.scrollTop).toBe(800);
+		h.zoom.setMode('native', 1, 10);
+		h.scroll.scrollLeft = 0;
+		h.scroll.dispatchEvent(new Event('scroll'));
+		expect(h.scroll.scrollLeft).toBe(0);
+	});
 	it('fits a canvas that becomes ready well after the original 250 ms retry', () => {
 		const h = harness();
 		h.zoom.setMode('fit-content', 1, 10);
@@ -86,7 +101,7 @@ describe('Fit Content on slow mobile viewers', () => {
 	});
 });
 
-function harness(profile?: ConstructorParameters<typeof ZoomController>[1]) {
+function harness(profile?: ConstructorParameters<typeof ZoomController>[1], mobile = false) {
 	vi.useFakeTimers();
 	vi.stubGlobal('window', { setTimeout, clearTimeout });
 	const h = {
@@ -94,6 +109,9 @@ function harness(profile?: ConstructorParameters<typeof ZoomController>[1]) {
 		setZoom: vi.fn<(value: number) => void>(),
 		align: vi.fn(), nativeZoom: vi.fn(() => true),
 		zoom: null as unknown as ZoomController,
+		scroll: Object.assign(new EventTarget(), {
+			scrollLeft: 30, scrollTop: 600, scrollWidth: 500, clientWidth: 378,
+		}),
 	};
 	const ownerWindow = {
 		setTimeout: (callback: () => void, delay: number) => windowTimer(callback, delay),
@@ -112,7 +130,10 @@ function harness(profile?: ConstructorParameters<typeof ZoomController>[1]) {
 		for (let x = 10; x < 90; x++) data[(y * 100 + x) * 4 + 3] = 255;
 	}
 	const pdf = {
-		getViewContainer: () => ({ ownerDocument: { defaultView: ownerWindow } }),
+		getViewContainer: () => ({
+			ownerDocument: { defaultView: ownerWindow, body: { matches: () => mobile } },
+		}),
+		getScrollContainer: () => h.scroll,
 		getCurrentPage: () => h.page,
 		getPageRaster: () => h.ready ? { width: 100, height: 120, data } : null,
 		getPageGeometry: () => ({

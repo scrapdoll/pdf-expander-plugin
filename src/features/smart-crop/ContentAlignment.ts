@@ -1,4 +1,5 @@
 import type { PdfViewerAdapter, NormalizedPdfRect } from '../../pdf/PdfViewerAdapter';
+import { HorizontalReadingLock } from './HorizontalReadingLock';
 
 const LAYOUT_TOLERANCE_PX = 2;
 const MAX_LAYOUT_CHECKS = 40;
@@ -7,10 +8,14 @@ export class ContentAlignment {
 	private frame: number | null = null;
 	private timer: number | null = null;
 	private generation = 0;
+	private readonly horizontalLock: HorizontalReadingLock;
 
-	constructor(private readonly pdf: PdfViewerAdapter) {}
+	constructor(private readonly pdf: PdfViewerAdapter) {
+		this.horizontalLock = new HorizontalReadingLock(pdf);
+	}
 
 	cancel(): void {
+		this.horizontalLock.cancel();
 		this.generation += 1;
 		const ownerWindow = this.ownerWindow;
 		if (this.frame !== null) ownerWindow.cancelAnimationFrame(this.frame);
@@ -31,6 +36,7 @@ export class ContentAlignment {
 			if (geometry !== null &&
 				Math.abs(geometry.pageWidth - expectedWidth) <= LAYOUT_TOLERANCE_PX) {
 				this.pdf.alignPageRegion(page, crop);
+				this.horizontalLock.hold(page, geometry.pageWidth);
 			} else if (++checks < MAX_LAYOUT_CHECKS) {
 				// Slow WebViews can need more than two animation frames for zoom.
 				this.timer = this.ownerWindow.setTimeout(align, 50);

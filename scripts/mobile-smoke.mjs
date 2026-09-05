@@ -212,6 +212,22 @@ export function snapshotsAreStable(previous, current) {
 	);
 }
 
+export function assessVerticalScroll(before, after, driftTolerance) {
+	const assessment = assessHorizontalLock(before, after, driftTolerance);
+	const verticalDistance = Math.abs(after.scrollTop - before.scrollTop);
+	const checks = {
+		...assessment.checks,
+		verticalScrollWorked: verticalDistance >= 24,
+		scaleUnchanged: Math.abs(after.pageWidth - before.pageWidth) <= 2,
+	};
+	return {
+		passed: Object.values(checks).every(Boolean),
+		drift: assessment.drift,
+		verticalDistance,
+		checks,
+	};
+}
+
 export async function runMobileSmoke(options) {
 	const outputDirectory = path.join(
 		options.resultsRoot,
@@ -290,13 +306,19 @@ export async function runMobileSmoke(options) {
 			after,
 			options.driftTolerance,
 		);
+		console.log('Checking vertical touch scrolling and horizontal anchoring');
+		await dispatchVerticalTouch(client, after);
+		const afterVertical = await waitForStableSnapshot(client);
+		await captureScreenshot(client, path.join(outputDirectory, 'after-vertical.png'));
+		const verticalScroll = assessVerticalScroll(after, afterVertical, options.driftTolerance);
 		const report = {
 			scenario: 'Fit Content horizontal lock',
-			passed: assessment.passed,
 			target: target.context,
 			viewport: { width: options.width, height: options.height },
 			driftTolerance: options.driftTolerance,
 			...assessment,
+			passed: assessment.passed && verticalScroll.passed,
+			verticalScroll: { ...verticalScroll, before: after, after: afterVertical },
 			before,
 			after,
 		};
@@ -552,6 +574,7 @@ async function readSnapshot(client) {
 			scrollWidth: container.scrollWidth,
 			clientWidth: container.clientWidth,
 			pageWidth: pageRect?.width ?? 0,
+			pageTop: pageRect?.top ?? 0,
 			containerRect: {
 				left: containerRect.left,
 				top: containerRect.top,
@@ -621,6 +644,19 @@ async function dispatchHorizontalTouch(client, rect) {
 		speed: 300,
 		gestureSourceType: 'touch',
 		preventFling: true,
+	});
+}
+
+async function dispatchVerticalTouch(client, snapshot) {
+	const rect = snapshot.containerRect;
+	await client.call('Input.synthesizeScrollGesture', {
+		x: rect.left + rect.width * 0.5,
+		y: rect.top + rect.height * 0.5,
+		xDistance: 0,
+		yDistance: snapshot.pageTop < rect.top - 100 ? 80 : -80,
+		speed: 200,
+		gestureSourceType: 'touch',
+		preventFling: false,
 	});
 }
 

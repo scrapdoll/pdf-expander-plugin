@@ -21,6 +21,7 @@ It does not replace the renderer, modify PDF files, or use a separate database.
   the native viewer has already rendered. Current-page bounds take priority;
   bounded odd/even profiles provide an initial estimate while rendering finishes.
   Slow pages are retried, and horizontal alignment preserves vertical reading position.
+  On mobile, the fitted horizontal position is retained during vertical scrolling.
 
 If page pixels or private PDF.js zoom controls are unavailable, Fit Content
 gracefully falls back to Fit Width and normal PDF reading remains available.
@@ -71,6 +72,8 @@ Chromium debugging protocol. It enables Obsidian's mobile mode, applies a
 touch movement, and verifies that the page and horizontal reading position do
 not change. It also measures painted content and rejects large leftover margins
 or horizontal clipping. Desktop emulation does not replace acceptance on iOS.
+It also performs vertical touch scrolling and checks that the text keeps its
+horizontal position while vertical scrolling still works.
 
 Close Obsidian, start it from PowerShell with a local debugging port, and open
 a PDF in the active tab:

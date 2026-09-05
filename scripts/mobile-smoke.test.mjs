@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import {
 	assessHorizontalLock,
+	assessVerticalScroll,
 	CdpClient,
 	parseOptions,
 	snapshotsAreStable,
@@ -9,6 +10,16 @@ import {
 } from './mobile-smoke.mjs';
 
 describe('mobile smoke-test support', () => {
+	it('accepts vertical scrolling only when horizontal alignment is retained', () => {
+		const before = snapshot();
+		const after = snapshot({ scrollTop: 720 });
+		expect(assessVerticalScroll(before, after, 2).passed).toBe(true);
+		expect(assessVerticalScroll(before, before, 2).passed).toBe(false);
+		expect(assessVerticalScroll(before, snapshot({
+			scrollTop: 720, scrollLeft: 0,
+			contentBounds: { left: 160, right: 514 },
+		}), 2).passed).toBe(false);
+	});
 	it('accepts a null WebSocket send error from ws', async () => {
 		const socket = new FakeSocket();
 		const client = new CdpClient(socket);
