@@ -93,6 +93,7 @@ export class ReaderController extends Component {
 		this.register(
 			this.pdf.onPositionChange((page) => {
 				this.position?.handlePositionChange(page);
+				this.zoom.handleViewerUpdate(page);
 				this.updateOverlay();
 			}),
 		);

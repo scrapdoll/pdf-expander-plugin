@@ -186,6 +186,13 @@ export function assessHorizontalLock(before, after, driftTolerance) {
 		mobileClassPresent: before.mobileClass && after.mobileClass,
 		pageUnchanged: before.page === after.page,
 		horizontalDriftWithinTolerance: drift <= driftTolerance,
+		contentFitsViewport: [before, after].every((snapshot) =>
+			snapshot.contentBounds !== null &&
+			snapshot.contentBounds !== undefined &&
+			snapshot.contentBounds.right - snapshot.contentBounds.left >= snapshot.clientWidth * 0.85 &&
+			snapshot.contentBounds.left >= -2 &&
+			snapshot.contentBounds.right <= snapshot.clientWidth + 2,
+		),
 	};
 	return {
 		passed: Object.values(checks).every(Boolean),
@@ -529,7 +536,9 @@ async function readSnapshot(client) {
 		const page = Number.parseInt(pageElement?.dataset.pageNumber ?? '', 10);
 		const pageRect = pageElement?.getBoundingClientRect();
 		const canvas = pageElement?.querySelector('canvas');
+		const contentBounds = (${measureContentBounds.toString()})(canvas, container);
 		return {
+			contentBounds,
 			ready: Number.isFinite(page) && pageRect !== undefined && containerRect.width > 0 && containerRect.height > 0,
 			rendered:
 				canvas instanceof HTMLCanvasElement &&
@@ -551,6 +560,54 @@ async function readSnapshot(client) {
 			},
 		};
 	})()`);
+}
+
+// Runs inside the viewer. Measure painted pixels, not the mode label.
+function measureContentBounds(source, container) {
+	if (!(source instanceof HTMLCanvasElement) || !source.width || !source.height) return null;
+	try {
+		const canvas = document.createElement('canvas');
+		const scale = Math.min(1, 384 / Math.max(source.width, source.height));
+		canvas.width = Math.max(1, Math.round(source.width * scale));
+		canvas.height = Math.max(1, Math.round(source.height * scale));
+		const context = canvas.getContext('2d', { willReadFrequently: true });
+		if (context === null) return null;
+		context.fillStyle = 'white';
+		context.fillRect(0, 0, canvas.width, canvas.height);
+		context.drawImage(source, 0, 0, canvas.width, canvas.height);
+		const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+		const corners = [
+			(2 * canvas.width + 2) * 4,
+			(3 * canvas.width - 3) * 4,
+			((canvas.height - 3) * canvas.width + 2) * 4,
+			((canvas.height - 2) * canvas.width - 3) * 4,
+		];
+		const background = [0, 1, 2].map((channel) =>
+			corners.reduce((sum, index) => sum + data[index + channel], 0) / 4,
+		);
+		let first = canvas.width;
+		let last = -1;
+		for (let x = 0; x < canvas.width; x++) {
+			let ink = 0;
+			for (let y = 0; y < canvas.height; y++) {
+				const index = (y * canvas.width + x) * 4;
+				if (background.some((color, channel) => Math.abs(data[index + channel] - color) >= 24)) ink++;
+			}
+			if (ink >= 2) {
+				first = Math.min(first, x);
+				last = x;
+			}
+		}
+		if (last < first) return null;
+		const rect = source.getBoundingClientRect();
+		const origin = container.getBoundingClientRect().left + container.clientLeft;
+		return {
+			left: rect.left - origin + first / canvas.width * rect.width,
+			right: rect.left - origin + (last + 1) / canvas.width * rect.width,
+		};
+	} catch {
+		return null;
+	}
 }
 
 async function dispatchHorizontalTouch(client, rect) {

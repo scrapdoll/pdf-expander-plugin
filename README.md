@@ -18,8 +18,9 @@ It does not replace the renderer, modify PDF files, or use a separate database.
 - Standard Obsidian links to a PDF or its current `#page=N` subpath.
 - Native Fit Page and Fit Width modes.
 - Lazy Fit Content / Smart Crop based on downsampled pixels from canvases that
-  the native viewer has already rendered. Profiles are bounded and maintained
-  separately for odd and even pages.
+  the native viewer has already rendered. Current-page bounds take priority;
+  bounded odd/even profiles provide an initial estimate while rendering finishes.
+  Slow pages are retried, and horizontal alignment preserves vertical reading position.
 
 If page pixels or private PDF.js zoom controls are unavailable, Fit Content
 gracefully falls back to Fit Width and normal PDF reading remains available.
@@ -68,7 +69,8 @@ The smoke test drives the real desktop Obsidian PDF viewer through the local
 Chromium debugging protocol. It enables Obsidian's mobile mode, applies a
 390x844 touch viewport, selects **Fit content**, performs a short horizontal
 touch movement, and verifies that the page and horizontal reading position do
-not change.
+not change. It also measures painted content and rejects large leftover margins
+or horizontal clipping. Desktop emulation does not replace acceptance on iOS.
 
 Close Obsidian, start it from PowerShell with a local debugging port, and open
 a PDF in the active tab:

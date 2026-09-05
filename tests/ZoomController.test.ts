@@ -65,6 +65,7 @@ describe('ZoomController native presets', () => {
 		const crop = { left: 0.1, top: 0.05, right: 0.9, bottom: 0.95 };
 		const pdf = {
 			getPageRaster: () => null,
+			getCurrentPage: () => 1,
 			getPageGeometry: () => ({
 				pageWidth: 1220,
 				pageHeight: 1500,

@@ -3,6 +3,35 @@ import { describe, expect, it, vi } from 'vitest';
 import { ObsidianPdfAdapter } from '../src/pdf/ObsidianPdfAdapter';
 
 describe('ObsidianPdfAdapter private boundary', () => {
+	it('aligns content horizontally without jumping back to its top', () => {
+		const scrollTo = vi.fn();
+		const page = {
+			dataset: { pageNumber: '1' },
+			getBoundingClientRect: () => ({ left: -30, top: -700, width: 500, height: 900 }),
+		};
+		const scroll = {
+			scrollLeft: 30, scrollTop: 1800, clientWidth: 378,
+			getBoundingClientRect: () => ({ left: 0, top: 100 }), scrollTo,
+		};
+		const adapter = new ObsidianPdfAdapter({
+			view: { containerEl: {
+				querySelector: () => scroll, querySelectorAll: () => [page],
+			} },
+		} as unknown as WorkspaceLeaf);
+		adapter.alignPageRegion(1, { left: 0.15, top: 0.1, right: 0.85, bottom: 0.9 });
+		expect(scrollTo).toHaveBeenCalledWith({ left: 61, top: 1800, behavior: 'auto' });
+	});
+
+	it('does not analyze a partially painted PDF.js canvas', () => {
+		const getPageView = vi.fn(() => ({ renderingState: 1 }));
+		const adapter = new ObsidianPdfAdapter({
+			view: { containerEl: {}, viewer: { child: { pdfViewer: {
+				pdfViewer: { getPageView, currentPageNumber: 2 },
+			} } } },
+		} as unknown as WorkspaceLeaf);
+		expect(adapter.getPageRaster(2, 384)).toBeNull();
+		expect(getPageView).toHaveBeenCalledWith(1);
+	});
 	it('supports the guarded Obsidian 1.13 PDF.js path', () => {
 		const pdfViewer: Record<string, unknown> = {
 			currentPageNumber: 4,

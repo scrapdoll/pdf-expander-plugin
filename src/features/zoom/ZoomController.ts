@@ -38,6 +38,9 @@ export class ZoomController {
 		pageCount: number,
 		customZoom?: number,
 	): void {
+		if (mode !== 'fit-content' && this.mode === 'fit-content') {
+			this.fitContentController.cancel();
+		}
 		this.mode = mode;
 		this.customZoom =
 			mode === 'custom' && customZoom !== undefined && customZoom > 0
@@ -71,6 +74,12 @@ export class ZoomController {
 
 	serializeCropProfile(): SerializedCropProfile {
 		return this.fitContentController.serializeProfile();
+	}
+
+	handleViewerUpdate(page: number): void {
+		if (this.mode === 'fit-content') {
+			this.fitContentController.handleViewerUpdate(page);
+		}
 	}
 
 	dispose(): void {

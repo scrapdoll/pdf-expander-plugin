@@ -266,6 +266,14 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 	}
 
 	getPageRaster(page: number, maxDimension: number): PdfPageRaster | null {
+		const viewer = this.getInternalPdfViewer();
+		if (typeof viewer?.getPageView === 'function') {
+			const getPageView = viewer.getPageView as (index: number) => unknown;
+			const pageView = getPageView.call(viewer, page - 1);
+			// PDF.js RenderingStates.FINISHED = 3. Never cache partial paint.
+			if (isRecord(pageView) && typeof pageView.renderingState === 'number' &&
+				pageView.renderingState !== 3) return null;
+		}
 		const pageElement = this.getPageElement(page);
 		const source = pageElement?.querySelector<HTMLCanvasElement>('canvas');
 		if (
@@ -351,7 +359,7 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 				metrics.pageLeft +
 					metrics.pageWidth * region.left -
 					horizontalMargin,
-			top: metrics.pageTop + metrics.pageHeight * region.top,
+			top: metrics.scrollTop,
 			behavior: 'auto',
 		});
 	}
@@ -556,6 +564,7 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 	): void {
 		const addListener = eventBus?.on ?? eventBus?._on;
 		addListener?.call(eventBus, 'pagechanging', callback);
+		addListener?.call(eventBus, 'pagerendered', callback);
 	}
 
 	private removeEventBusListener(
@@ -564,6 +573,7 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 	): void {
 		const removeListener = eventBus?.off ?? eventBus?._off;
 		removeListener?.call(eventBus, 'pagechanging', callback);
+		removeListener?.call(eventBus, 'pagerendered', callback);
 	}
 
 	private getToolbarPageInput(): HTMLInputElement | null {

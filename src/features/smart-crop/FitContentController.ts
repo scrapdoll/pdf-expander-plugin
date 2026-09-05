@@ -1,152 +1,131 @@
 import type { PdfViewerAdapter } from '../../pdf/PdfViewerAdapter';
 import { CropDetector } from './CropDetector';
-import {
-	CropProfile,
-	type CropBox,
-	type SerializedCropProfile,
-} from './CropProfile';
+import { CropProfile, type CropBox, type SerializedCropProfile } from './CropProfile';
+import { ContentAlignment } from './ContentAlignment';
 
 const RASTER_MAX_DIMENSION = 384;
 const VIEWPORT_PADDING = 24;
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 10;
+const MAX_CACHED_PAGES = 64;
+const RETRY_DELAY_MS = 250;
+const MAX_RETRIES = 40;
 const ZOOM_RELATIVE_TOLERANCE = 0.005;
 
 export class FitContentController {
 	private readonly detector = new CropDetector();
 	private readonly profile: CropProfile;
-	private readonly analyzedPages = new Set<number>();
+	private readonly crops = new Map<number, CropBox>();
+	private readonly alignment: ContentAlignment;
 	private analysisTimer: number | null = null;
-	private firstAlignmentFrame: number | null = null;
-	private secondAlignmentFrame: number | null = null;
+	private activePage: number | null = null;
+	private retries = 0;
 
 	constructor(
 		private readonly pdf: PdfViewerAdapter,
 		serializedProfile: SerializedCropProfile | undefined,
-		private readonly onProfileChange: (
-			profile: SerializedCropProfile,
-		) => void,
+		private readonly onProfileChange: (profile: SerializedCropProfile) => void,
 	) {
 		this.profile = new CropProfile(serializedProfile);
+		this.alignment = new ContentAlignment(pdf);
 	}
 
-	fit(page: number, pageCount: number): boolean {
+	fit(page: number, _pageCount: number): boolean {
+		this.cancel();
+		this.activePage = page;
 		this.analyzePage(page);
-		this.scheduleNearbyAnalysis(page, pageCount);
-		return this.applyProfile(page);
+		const applied = this.applyProfile(page);
+		this.scheduleAnalysis();
+		return applied;
 	}
 
-	private applyProfile(page: number): boolean {
-		const crop = this.profile.get(page);
-		const geometry = this.pdf.getPageGeometry(page);
-		const currentZoom = this.pdf.getZoom();
-		if (crop === null || geometry === null || currentZoom === null) {
-			return false;
+	// Position notifications include native pagerendered events. Resume after
+	// bounded polling if a slow page finally becomes available.
+	handleViewerUpdate(page: number): void {
+		if (page === this.activePage && !this.crops.has(page)) {
+			this.scheduleAnalysis();
 		}
-
-		const contentWidth = geometry.pageWidth * (crop.right - crop.left);
-		if (contentWidth <= 0) {
-			return false;
-		}
-
-		const availableWidth = Math.max(
-			64,
-			geometry.viewportWidth - VIEWPORT_PADDING,
-		);
-		const targetZoom = Math.min(
-			Math.max((currentZoom * availableWidth) / contentWidth, MIN_ZOOM),
-			MAX_ZOOM,
-		);
-		const zoomChanges =
-			Math.abs(targetZoom - currentZoom) / currentZoom >
-			ZOOM_RELATIVE_TOLERANCE;
-		if (zoomChanges) {
-			this.pdf.setZoom(targetZoom);
-		}
-		this.scheduleAlignment(page, crop, zoomChanges);
-		return true;
 	}
 
 	serializeProfile(): SerializedCropProfile {
 		return this.profile.serialize();
 	}
 
-	dispose(): void {
-		const ownerWindow =
-			this.pdf.getViewContainer().ownerDocument.defaultView ?? window;
+	cancel(): void {
+		this.activePage = null;
+		this.retries = 0;
 		if (this.analysisTimer !== null) {
-			ownerWindow.clearTimeout(this.analysisTimer);
+			this.ownerWindow.clearTimeout(this.analysisTimer);
+			this.analysisTimer = null;
 		}
-		if (this.firstAlignmentFrame !== null) {
-			ownerWindow.cancelAnimationFrame(this.firstAlignmentFrame);
-		}
-		if (this.secondAlignmentFrame !== null) {
-			ownerWindow.cancelAnimationFrame(this.secondAlignmentFrame);
-		}
+		this.alignment.cancel();
 	}
 
-	private analyzePage(page: number): void {
-		if (this.analyzedPages.has(page)) {
-			return;
+	dispose(): void {
+		this.cancel();
+	}
+
+	private get ownerWindow(): Window {
+		return this.pdf.getViewContainer().ownerDocument.defaultView ?? window;
+	}
+
+	private applyProfile(page: number): boolean {
+		// Use the saved median only until this page's actual bounds are known.
+		const crop = this.crops.get(page) ?? this.profile.get(page);
+		const geometry = this.pdf.getPageGeometry(page);
+		const currentZoom = this.pdf.getZoom();
+		if (
+			crop === null || geometry === null || currentZoom === null ||
+			currentZoom <= 0 || geometry.pageWidth <= 0 ||
+			geometry.viewportWidth <= VIEWPORT_PADDING
+		) {
+			return false;
 		}
+
+		const contentWidth = geometry.pageWidth * (crop.right - crop.left);
+		const availableWidth = geometry.viewportWidth - VIEWPORT_PADDING;
+		const targetZoom = Math.min(Math.max(
+			currentZoom * availableWidth / contentWidth, 0.25,
+		), 10);
+		const zoomChanges =
+			Math.abs(targetZoom - currentZoom) / currentZoom > ZOOM_RELATIVE_TOLERANCE;
+		const expectedWidth = zoomChanges
+			? geometry.pageWidth * targetZoom / currentZoom
+			: geometry.pageWidth;
+		if (zoomChanges) {
+			this.pdf.setZoom(targetZoom);
+		}
+		this.alignment.schedule(page, crop, expectedWidth);
+		return true;
+	}
+
+	private analyzePage(page: number): boolean {
+		if (this.crops.has(page)) return true;
 		const raster = this.pdf.getPageRaster(page, RASTER_MAX_DIMENSION);
-		if (raster === null) {
-			return;
-		}
+		if (raster === null) return false;
 		const crop = this.detector.detect(raster);
-		if (crop !== null) {
-			this.analyzedPages.add(page);
+		if (crop === null) return false;
+		this.crops.set(page, crop);
+		if (this.crops.size > MAX_CACHED_PAGES) {
+			const oldest = this.crops.keys().next().value;
+			if (oldest !== undefined) this.crops.delete(oldest);
 		}
-		if (crop !== null && this.profile.add(page, crop)) {
+		if (this.profile.add(page, crop)) {
 			this.onProfileChange(this.profile.serialize());
 		}
+		return true;
 	}
 
-	private scheduleNearbyAnalysis(page: number, pageCount: number): void {
-		const ownerWindow =
-			this.pdf.getViewContainer().ownerDocument.defaultView ?? window;
-		if (this.analysisTimer !== null) {
-			ownerWindow.clearTimeout(this.analysisTimer);
-		}
-
-		this.analysisTimer = ownerWindow.setTimeout(() => {
+	private scheduleAnalysis(): void {
+		const page = this.activePage;
+		if (page === null || this.crops.has(page) || this.analysisTimer !== null) return;
+		this.analysisTimer = this.ownerWindow.setTimeout(() => {
 			this.analysisTimer = null;
-			const candidates = [page, page - 2, page - 1, page + 1, page + 2];
-			for (const candidate of candidates) {
-				if (candidate >= 1 && candidate <= pageCount) {
-					this.analyzePage(candidate);
-				}
-			}
-			if (this.pdf.getCurrentPage() === page) {
+			if (this.activePage !== page || this.pdf.getCurrentPage() !== page) return;
+			if (this.analyzePage(page)) {
 				this.applyProfile(page);
-			}
-		}, 250);
-	}
-
-	private scheduleAlignment(
-		page: number,
-		crop: CropBox,
-		waitForZoom: boolean,
-	): void {
-		const ownerWindow =
-			this.pdf.getViewContainer().ownerDocument.defaultView ?? window;
-		if (this.firstAlignmentFrame !== null) {
-			ownerWindow.cancelAnimationFrame(this.firstAlignmentFrame);
-		}
-		if (this.secondAlignmentFrame !== null) {
-			ownerWindow.cancelAnimationFrame(this.secondAlignmentFrame);
-		}
-
-		this.firstAlignmentFrame = ownerWindow.requestAnimationFrame(() => {
-			this.firstAlignmentFrame = null;
-			if (!waitForZoom) {
-				this.pdf.alignPageRegion(page, crop);
 				return;
 			}
-			this.secondAlignmentFrame = ownerWindow.requestAnimationFrame(() => {
-				this.secondAlignmentFrame = null;
-				this.pdf.alignPageRegion(page, crop);
-			});
-		});
+			this.retries += 1;
+			if (this.retries < MAX_RETRIES) this.scheduleAnalysis();
+		}, RETRY_DELAY_MS);
 	}
 }

@@ -26,6 +26,16 @@ describe('mobile smoke-test support', () => {
 		});
 	});
 
+	it('rejects a stationary Fit Width view mislabeled as Fit Content', () => {
+		const state = snapshot({ contentBounds: { left: 35, right: 332 } });
+		expect(assessHorizontalLock(state, state, 2).checks.contentFitsViewport).toBe(false);
+	});
+
+	it('rejects content clipped by horizontal locking', () => {
+		const state = snapshot({ contentBounds: { left: -20, right: 380 } });
+		expect(assessHorizontalLock(state, state, 2).passed).toBe(false);
+	});
+
 	it('rejects drift or an unexpected page turn', () => {
 		const before = snapshot({ page: 10, scrollLeft: 142 });
 		const after = snapshot({ page: 11, scrollLeft: 149 });
@@ -124,6 +134,7 @@ function snapshot(overrides = {}) {
 		scrollTop: 640,
 		pageWidth: 620,
 		clientWidth: 390,
+		contentBounds: { left: 18, right: 372 },
 		...overrides,
 	};
 }
