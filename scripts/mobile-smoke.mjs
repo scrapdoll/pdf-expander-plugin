@@ -212,17 +212,26 @@ export function snapshotsAreStable(previous, current) {
 	);
 }
 
-export function assessVerticalScroll(before, after, driftTolerance) {
+export function assessVerticalScroll(before, after, driftTolerance, during = []) {
 	const assessment = assessHorizontalLock(before, after, driftTolerance);
 	const verticalDistance = Math.abs(after.scrollTop - before.scrollTop);
+	const maxTransientDrift = Math.max(
+		assessment.drift,
+		...during.map((snapshot) =>
+			Math.abs(snapshot.scrollLeft - before.scrollLeft),
+		),
+	);
 	const checks = {
 		...assessment.checks,
+		transientHorizontalDriftWithinTolerance:
+			maxTransientDrift <= driftTolerance,
 		verticalScrollWorked: verticalDistance >= 24,
 		scaleUnchanged: Math.abs(after.pageWidth - before.pageWidth) <= 2,
 	};
 	return {
 		passed: Object.values(checks).every(Boolean),
 		drift: assessment.drift,
+		maxTransientDrift,
 		verticalDistance,
 		checks,
 	};
@@ -307,10 +316,15 @@ export async function runMobileSmoke(options) {
 			options.driftTolerance,
 		);
 		console.log('Checking vertical touch scrolling and horizontal anchoring');
-		await dispatchVerticalTouch(client, after);
+		const duringVertical = await dispatchVerticalTouchWithSamples(client, after);
 		const afterVertical = await waitForStableSnapshot(client);
 		await captureScreenshot(client, path.join(outputDirectory, 'after-vertical.png'));
-		const verticalScroll = assessVerticalScroll(after, afterVertical, options.driftTolerance);
+		const verticalScroll = assessVerticalScroll(
+			after,
+			afterVertical,
+			options.driftTolerance,
+			duringVertical,
+		);
 		const report = {
 			scenario: 'Fit Content horizontal lock',
 			target: target.context,
@@ -318,7 +332,12 @@ export async function runMobileSmoke(options) {
 			driftTolerance: options.driftTolerance,
 			...assessment,
 			passed: assessment.passed && verticalScroll.passed,
-			verticalScroll: { ...verticalScroll, before: after, after: afterVertical },
+			verticalScroll: {
+				...verticalScroll,
+				before: after,
+				during: duringVertical,
+				after: afterVertical,
+			},
 			before,
 			after,
 		};
@@ -658,6 +677,20 @@ async function dispatchVerticalTouch(client, snapshot) {
 		gestureSourceType: 'touch',
 		preventFling: false,
 	});
+}
+
+async function dispatchVerticalTouchWithSamples(client, snapshot) {
+	const samples = [];
+	let finished = false;
+	const gesture = dispatchVerticalTouch(client, snapshot).finally(() => {
+		finished = true;
+	});
+	while (!finished) {
+		await delay(32);
+		if (!finished) samples.push(await readSnapshot(client));
+	}
+	await gesture;
+	return samples;
 }
 
 async function captureScreenshot(client, filePath) {

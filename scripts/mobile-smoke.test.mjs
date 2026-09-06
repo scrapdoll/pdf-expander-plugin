@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
 	assessHorizontalLock,
@@ -10,6 +11,22 @@ import {
 } from './mobile-smoke.mjs';
 
 describe('mobile smoke-test support', () => {
+	it('preserves the native horizontal scroll offset during vertical touch', () => {
+		const stylesheet = readFileSync(
+			new URL('../styles.css', import.meta.url),
+			'utf8',
+		);
+		const rule = /pdf-reader-fit-content[^{]*\{(?<body>[^}]*)\}/u.exec(
+			stylesheet,
+		)?.groups?.body;
+		const declarations = rule?.replace(/\/\*[\s\S]*?\*\//gu, '');
+
+		expect(rule).toBeDefined();
+		expect(declarations).toContain('touch-action: pan-y pinch-zoom');
+		expect(declarations).toContain('overscroll-behavior-x: none');
+		expect(declarations).not.toMatch(/overflow-x\s*:\s*hidden/u);
+	});
+
 	it('accepts vertical scrolling only when horizontal alignment is retained', () => {
 		const before = snapshot();
 		const after = snapshot({ scrollTop: 720 });
@@ -19,6 +36,20 @@ describe('mobile smoke-test support', () => {
 			scrollTop: 720, scrollLeft: 0,
 			contentBounds: { left: 160, right: 514 },
 		}), 2).passed).toBe(false);
+	});
+
+	it('rejects a transient right jump that recovers after touch release', () => {
+		const before = snapshot();
+		const after = snapshot({ scrollTop: 720 });
+		const during = [snapshot({
+			scrollLeft: 0,
+			scrollTop: 680,
+			contentBounds: { left: 160, right: 514 },
+		})];
+		const result = assessVerticalScroll(before, after, 2, during);
+		expect(result.passed).toBe(false);
+		expect(result.maxTransientDrift).toBe(142);
+		expect(result.checks.transientHorizontalDriftWithinTolerance).toBe(false);
 	});
 	it('accepts a null WebSocket send error from ws', async () => {
 		const socket = new FakeSocket();
