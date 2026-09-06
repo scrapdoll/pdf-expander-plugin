@@ -44,6 +44,21 @@ describe('mobile Fit Content horizontal reading lock', () => {
 		expect(event.defaultPrevented).toBe(false);
 	});
 
+	it('uses a zero-offset adapter lock until pinch releases it', () => {
+		const h = harness(true, true);
+		h.lock.hold(22, 500);
+		expect(h.container.scrollLeft).toBe(0);
+		h.container.dispatchEvent(new Event('scroll'));
+		expect(h.stableRelease).not.toHaveBeenCalled();
+
+		const event = new Event('touchstart', { cancelable: true });
+		Object.defineProperty(event, 'touches', { value: [{}, {}] });
+		h.container.dispatchEvent(event);
+		expect(h.stableRelease).toHaveBeenCalledOnce();
+		expect(h.container.scrollLeft).toBe(72);
+		expect(event.defaultPrevented).toBe(false);
+	});
+
 	it('stops enforcing the old anchor on page changes and reacquires the new one', () => {
 		const h = harness();
 		h.lock.hold(22, 500);
@@ -97,9 +112,9 @@ class ScrollContainer extends EventTarget {
 	set scrollTop(value: number) { this.top = value; }
 }
 
-function harness(mobile = true) {
+function harness(mobile = true, stable = false) {
 	const h = { page: 22, width: 500, container: new ScrollContainer(),
-		lock: null as unknown as HorizontalReadingLock };
+		lock: null as unknown as HorizontalReadingLock, stableRelease: vi.fn() };
 	const pdf = {
 		getViewContainer: () => ({
 			ownerDocument: { body: { matches: () => mobile } },
@@ -107,6 +122,14 @@ function harness(mobile = true) {
 		getScrollContainer: () => h.container,
 		getCurrentPage: () => h.page,
 		getPageGeometry: () => ({ pageWidth: h.width }),
+		...(stable ? { lockHorizontalPosition: () => {
+			const left = h.container.scrollLeft;
+			h.container.scrollLeft = 0;
+			return () => {
+				h.stableRelease();
+				h.container.scrollLeft = left;
+			};
+		} } : {}),
 	} as unknown as PdfViewerAdapter;
 	h.lock = new HorizontalReadingLock(pdf);
 	return h;

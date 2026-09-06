@@ -18,14 +18,38 @@ export class HorizontalReadingLock {
 		const left = container.scrollLeft;
 		if (!Number.isFinite(left)) return;
 
-		const restore = (): void => {
+		const isValid = (): boolean => {
 			const geometry = this.pdf.getPageGeometry(page);
-			if (
+			return !(
 				this.pdf.getScrollContainer() !== container ||
 				this.pdf.getCurrentPage() !== page ||
 				geometry === null ||
 				Math.abs(geometry.pageWidth - pageWidth) > LAYOUT_TOLERANCE_PX
-			) {
+			);
+		};
+		const releaseForPinch = (event: TouchEvent): void => {
+			if (event.touches.length > 1) this.cancel();
+		};
+		const stableRelease = this.pdf.lockHorizontalPosition?.() ?? null;
+		if (stableRelease !== null) {
+			const validate = (): void => {
+				if (!isValid()) this.cancel();
+			};
+			container.addEventListener('scroll', validate, { passive: true });
+			container.addEventListener('touchstart', releaseForPinch, {
+				passive: true,
+				capture: true,
+			});
+			this.release = () => {
+				container.removeEventListener('scroll', validate);
+				container.removeEventListener('touchstart', releaseForPinch, true);
+				stableRelease();
+			};
+			return;
+		}
+
+		const restore = (): void => {
+			if (!isValid()) {
 				this.cancel();
 				return;
 			}
@@ -38,9 +62,6 @@ export class HorizontalReadingLock {
 				// have moved on since that sample. Only repair the horizontal axis.
 				container.scrollLeft = target;
 			}
-		};
-		const releaseForPinch = (event: TouchEvent): void => {
-			if (event.touches.length > 1) this.cancel();
 		};
 		container.addEventListener('scroll', restore, { passive: true });
 		container.addEventListener('touchstart', releaseForPinch, {

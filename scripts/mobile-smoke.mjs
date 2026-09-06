@@ -184,6 +184,7 @@ export function assessHorizontalLock(before, after, driftTolerance) {
 	const checks = {
 		fitContentEnabled: before.fitContent && after.fitContent,
 		mobileClassPresent: before.mobileClass && after.mobileClass,
+		horizontalLockPresent: before.horizontalLock && after.horizontalLock,
 		pageUnchanged: before.page === after.page,
 		horizontalDriftWithinTolerance: drift <= driftTolerance,
 		contentFitsViewport: [before, after].every((snapshot) =>
@@ -588,6 +589,7 @@ async function readSnapshot(client) {
 			page,
 			fitContent: root.classList.contains('pdf-reader-fit-content'),
 			mobileClass: document.body.classList.contains('is-mobile') || document.body.classList.contains('is-phone'),
+			horizontalLock: container.classList.contains('pdf-reader-horizontal-lock'),
 			scrollLeft: container.scrollLeft,
 			scrollTop: container.scrollTop,
 			scrollWidth: container.scrollWidth,

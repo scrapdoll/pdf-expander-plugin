@@ -25,6 +25,13 @@ describe('mobile smoke-test support', () => {
 		expect(declarations).toContain('touch-action: pan-y pinch-zoom');
 		expect(declarations).toContain('overscroll-behavior-x: none');
 		expect(declarations).not.toMatch(/overflow-x\s*:\s*hidden/u);
+		const lockedRule = /pdf-reader-horizontal-lock[^{]*[{](?<body>[^}]*)[}]/u.exec(
+			stylesheet,
+		)?.groups?.body;
+		expect(lockedRule).toMatch(/overflow-x\s*:\s*hidden/u);
+		expect(stylesheet).toMatch(
+			/pdf-reader-horizontal-offset[^{]*[{][^}]*translate:\s*var\(--pdf-reader-horizontal-offset/u,
+		);
 	});
 
 	it('accepts vertical scrolling only when horizontal alignment is retained', () => {
@@ -172,6 +179,7 @@ function snapshot(overrides = {}) {
 		page: 10,
 		fitContent: true,
 		mobileClass: true,
+		horizontalLock: true,
 		scrollLeft: 142,
 		scrollTop: 640,
 		pageWidth: 620,

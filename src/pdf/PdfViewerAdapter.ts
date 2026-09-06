@@ -38,6 +38,7 @@ export interface PdfViewerAdapter {
 	getPageOffset(page: number): number | null;
 	setPageOffset(page: number, offset: number): void;
 	alignPageRegion(page: number, region: NormalizedPdfRect): void;
+	lockHorizontalPosition(): (() => void) | null;
 
 	getScrollContainer(): HTMLElement | null;
 	getViewContainer(): HTMLElement;

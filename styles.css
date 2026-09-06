@@ -129,11 +129,18 @@
 :is(.is-mobile, .is-phone)
 	.pdf-reader-enhanced.pdf-reader-fit-content
 	.pdf-viewer-container {
-	/* Keep the native x scroll offset alive while iOS handles a vertical pan.
-	   overflow-x: hidden temporarily clamps a non-zero scrollLeft to the
-	   origin in WKWebView, which makes the fitted page jump to the right. */
 	overscroll-behavior-x: none;
 	touch-action: pan-y pinch-zoom;
+}
+
+:is(.is-mobile, .is-phone)
+	.pdf-reader-enhanced.pdf-reader-fit-content
+	.pdf-viewer-container.pdf-reader-horizontal-lock {
+	overflow-x: hidden;
+}
+
+.pdf-reader-horizontal-offset {
+	translate: var(--pdf-reader-horizontal-offset, 0) 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

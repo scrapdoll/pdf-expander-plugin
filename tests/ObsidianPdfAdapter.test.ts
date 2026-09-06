@@ -22,6 +22,38 @@ describe('ObsidianPdfAdapter private boundary', () => {
 		expect(scrollTo).toHaveBeenCalledWith({ left: 61, top: 1800, behavior: 'auto' });
 	});
 
+	it('locks mobile horizontal movement without retaining a scroll offset', () => {
+		const containerClasses = classList();
+		const viewerClasses = classList();
+		const viewerStyle = styleDeclaration();
+		const viewer = { classList: viewerClasses, style: viewerStyle };
+		const scroll = {
+			scrollLeft: 72,
+			classList: containerClasses,
+			querySelector: () => viewer,
+		};
+		const adapter = new ObsidianPdfAdapter({
+			view: { containerEl: {
+				querySelector: (selector: string) =>
+					selector === '.pdf-viewer-container' ? scroll : null,
+			} },
+		} as unknown as WorkspaceLeaf);
+
+		const release = adapter.lockHorizontalPosition();
+		expect(release).not.toBeNull();
+		expect(scroll.scrollLeft).toBe(0);
+		expect(containerClasses.contains('pdf-reader-horizontal-lock')).toBe(true);
+		expect(viewerClasses.contains('pdf-reader-horizontal-offset')).toBe(true);
+		expect(viewerStyle.getPropertyValue('--pdf-reader-horizontal-offset')).toBe('-72px');
+
+		release?.();
+		release?.();
+		expect(scroll.scrollLeft).toBe(72);
+		expect(containerClasses.contains('pdf-reader-horizontal-lock')).toBe(false);
+		expect(viewerClasses.contains('pdf-reader-horizontal-offset')).toBe(false);
+		expect(viewerStyle.getPropertyValue('--pdf-reader-horizontal-offset')).toBe('');
+	});
+
 	it('does not analyze a partially painted PDF.js canvas', () => {
 		const getPageView = vi.fn(() => ({ renderingState: 1 }));
 		const adapter = new ObsidianPdfAdapter({
@@ -150,3 +182,21 @@ describe('ObsidianPdfAdapter private boundary', () => {
 		});
 	});
 });
+
+function classList() {
+	const classes = new Set<string>();
+	return {
+		add: (value: string) => classes.add(value),
+		remove: (value: string) => classes.delete(value),
+		contains: (value: string) => classes.has(value),
+	};
+}
+
+function styleDeclaration() {
+	const properties = new Map<string, string>();
+	return {
+		getPropertyValue: (name: string) => properties.get(name) ?? '',
+		setProperty: (name: string, value: string) => properties.set(name, value),
+		removeProperty: (name: string) => properties.delete(name),
+	};
+}

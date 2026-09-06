@@ -32,6 +32,11 @@ const PAGE_SELECTOR = [
 	'.pdf-page[data-page-number]',
 ].join(', ');
 
+const VIEWER_SELECTOR = '.pdfViewer, .pdf-viewer';
+const HORIZONTAL_LOCK_CLASS = 'pdf-reader-horizontal-lock';
+const HORIZONTAL_OFFSET_CLASS = 'pdf-reader-horizontal-offset';
+const HORIZONTAL_OFFSET_PROPERTY = '--pdf-reader-horizontal-offset';
+
 const SCROLL_CONTAINER_SELECTORS = [
 	'.pdf-viewer-container',
 	'.pdfViewerContainer',
@@ -362,6 +367,50 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 			top: metrics.scrollTop,
 			behavior: 'auto',
 		});
+	}
+
+	lockHorizontalPosition(): (() => void) | null {
+		const scrollContainer = this.getScrollContainer();
+		const viewer = scrollContainer?.querySelector<HTMLElement>(VIEWER_SELECTOR);
+		const offset = scrollContainer?.scrollLeft;
+		if (
+			scrollContainer === null ||
+			scrollContainer === undefined ||
+			viewer === null ||
+			viewer === undefined ||
+			offset === undefined ||
+			!Number.isFinite(offset)
+		) {
+			return null;
+		}
+
+		const hadContainerClass = scrollContainer.classList.contains(
+			HORIZONTAL_LOCK_CLASS,
+		);
+		const hadViewerClass = viewer.classList.contains(HORIZONTAL_OFFSET_CLASS);
+		const previousOffset = viewer.style.getPropertyValue(
+			HORIZONTAL_OFFSET_PROPERTY,
+		);
+		viewer.style.setProperty(HORIZONTAL_OFFSET_PROPERTY, `${-offset}px`);
+		viewer.classList.add(HORIZONTAL_OFFSET_CLASS);
+		scrollContainer.scrollLeft = 0;
+		scrollContainer.classList.add(HORIZONTAL_LOCK_CLASS);
+
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			if (!hadContainerClass) {
+				scrollContainer.classList.remove(HORIZONTAL_LOCK_CLASS);
+			}
+			if (!hadViewerClass) viewer.classList.remove(HORIZONTAL_OFFSET_CLASS);
+			if (previousOffset === '') {
+				viewer.style.removeProperty(HORIZONTAL_OFFSET_PROPERTY);
+			} else {
+				viewer.style.setProperty(HORIZONTAL_OFFSET_PROPERTY, previousOffset);
+			}
+			scrollContainer.scrollLeft = offset;
+		};
 	}
 
 	getScrollContainer(): HTMLElement | null {
