@@ -16,6 +16,10 @@ export class ContentAlignment {
 
 	cancel(): void {
 		this.horizontalLock.cancel();
+		this.cancelScheduled();
+	}
+
+	cancelScheduled(): void {
 		this.generation += 1;
 		const ownerWindow = this.ownerWindow;
 		if (this.frame !== null) ownerWindow.cancelAnimationFrame(this.frame);
@@ -25,7 +29,7 @@ export class ContentAlignment {
 	}
 
 	schedule(page: number, crop: NormalizedPdfRect, expectedWidth: number): void {
-		this.cancel();
+		this.cancelScheduled();
 		const generation = this.generation;
 		let checks = 0;
 		const align = (): void => {
@@ -35,6 +39,9 @@ export class ContentAlignment {
 			const geometry = this.pdf.getPageGeometry(page);
 			if (geometry !== null &&
 				Math.abs(geometry.pageWidth - expectedWidth) <= LAYOUT_TOLERANCE_PX) {
+				// Replace the old page lock and align the new page in one frame so
+				// mobile WebViews never paint an unlocked intermediate position.
+				this.horizontalLock.cancel();
 				this.pdf.alignPageRegion(page, crop);
 				this.horizontalLock.hold(page, geometry.pageWidth);
 			} else if (++checks < MAX_LAYOUT_CHECKS) {

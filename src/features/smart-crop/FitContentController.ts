@@ -29,10 +29,11 @@ export class FitContentController {
 	}
 
 	fit(page: number, _pageCount: number): boolean {
-		this.cancel();
+		this.cancelPending();
 		this.activePage = page;
 		this.analyzePage(page);
 		const applied = this.applyProfile(page);
+		if (!applied) this.alignment.cancel();
 		this.scheduleAnalysis();
 		return applied;
 	}
@@ -50,13 +51,18 @@ export class FitContentController {
 	}
 
 	cancel(): void {
+		this.cancelPending();
+		this.alignment.cancel();
+	}
+
+	private cancelPending(): void {
 		this.activePage = null;
 		this.retries = 0;
 		if (this.analysisTimer !== null) {
 			this.ownerWindow.clearTimeout(this.analysisTimer);
 			this.analysisTimer = null;
 		}
-		this.alignment.cancel();
+		this.alignment.cancelScheduled();
 	}
 
 	dispose(): void {

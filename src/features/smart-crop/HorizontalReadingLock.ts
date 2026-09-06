@@ -32,16 +32,11 @@ export class HorizontalReadingLock {
 		};
 		const stableRelease = this.pdf.lockHorizontalPosition?.() ?? null;
 		if (stableRelease !== null) {
-			const validate = (): void => {
-				if (!isValid()) this.cancel();
-			};
-			container.addEventListener('scroll', validate, { passive: true });
 			container.addEventListener('touchstart', releaseForPinch, {
 				passive: true,
 				capture: true,
 			});
 			this.release = () => {
-				container.removeEventListener('scroll', validate);
 				container.removeEventListener('touchstart', releaseForPinch, true);
 				stableRelease();
 			};
