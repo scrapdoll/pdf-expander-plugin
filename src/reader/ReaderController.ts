@@ -1,16 +1,18 @@
 import { Component, type WorkspaceLeaf } from 'obsidian';
 import { NavigationController } from '../features/navigation/NavigationController';
+import { ReadingFlowController } from '../features/navigation/ReadingFlowController';
 import { AutoHideController } from '../features/progress/AutoHideController';
 import { ReadingPositionController } from '../features/restore-position/ReadingPositionController';
 import { ZoomController } from '../features/zoom/ZoomController';
 import type { PdfViewerAdapter } from '../pdf/PdfViewerAdapter';
 import { ReaderOverlay } from '../ui/ReaderOverlay';
 import type { ReaderDataStore } from './ReaderDataStore';
-import type { ZoomMode } from './ReaderSettings';
+import type { ReadingFlow, ZoomMode } from './ReaderSettings';
 
 export class ReaderController extends Component {
 	private readonly overlay: ReaderOverlay;
 	private readonly navigation: NavigationController;
+	private readonly readingFlow: ReadingFlowController;
 	private readonly zoom: ZoomController;
 	private readonly autoHide: AutoHideController;
 	private readonly viewContainer: HTMLElement;
@@ -28,6 +30,7 @@ export class ReaderController extends Component {
 		super();
 		this.viewContainer = pdf.getViewContainer();
 		const savedState = store.getDocumentState(documentPath);
+		this.readingFlow = new ReadingFlowController(pdf);
 		this.zoom = new ZoomController(
 			pdf,
 			savedState?.cropProfile,
@@ -36,6 +39,7 @@ export class ReaderController extends Component {
 		this.position = new ReadingPositionController(
 			pdf,
 			this.zoom,
+			this.readingFlow,
 			store,
 			documentPath,
 			getExplicitPage,
@@ -46,6 +50,8 @@ export class ReaderController extends Component {
 			onFitPage: () => this.setFitPage(),
 			onFitWidth: () => this.setFitWidth(),
 			onFitContent: () => this.setFitContent(),
+			onSetVerticalReading: () => this.setVerticalReading(),
+			onSetHorizontalReading: () => this.setHorizontalReading(),
 			onToggleFocus: () => this.toggleFocusMode(),
 			onInteractionChange: (active) =>
 				this.autoHide.handleInteraction(active),
@@ -67,7 +73,9 @@ export class ReaderController extends Component {
 				toggleControls: () => this.toggleControls(),
 				areControlsVisible: () => this.overlay.isVisible(),
 			},
-			() => this.zoom.currentMode === 'fit-content',
+			() =>
+				this.readingFlow.currentMode === 'vertical' &&
+				this.zoom.currentMode === 'fit-content',
 		);
 	}
 
@@ -104,11 +112,13 @@ export class ReaderController extends Component {
 	override onunload(): void {
 		this.position?.dispose();
 		this.zoom.dispose();
+		this.readingFlow.dispose();
 		this.overlay.detach();
 		this.autoHide.dispose();
 		this.viewContainer.classList.remove(
 			'pdf-reader-focus-mode',
 			'pdf-reader-fit-content',
+			'pdf-reader-horizontal-reading',
 		);
 	}
 
@@ -170,6 +180,22 @@ export class ReaderController extends Component {
 		this.setZoomMode('fit-content');
 	}
 
+	setVerticalReading(): void {
+		this.setReadingFlow('vertical');
+	}
+
+	setHorizontalReading(): void {
+		this.setReadingFlow('horizontal');
+	}
+
+	toggleHorizontalReading(): void {
+		this.setReadingFlow(
+			this.readingFlow.currentMode === 'horizontal'
+				? 'vertical'
+				: 'horizontal',
+		);
+	}
+
 	restorePosition(): void {
 		this.position?.restore();
 	}
@@ -192,6 +218,7 @@ export class ReaderController extends Component {
 
 		const ownerWindow = this.viewContainer.ownerDocument.defaultView ?? window;
 		ownerWindow.requestAnimationFrame(() => {
+			this.readingFlow.apply();
 			this.zoom.apply(this.pdf.getCurrentPage(), this.pdf.getPageCount());
 		});
 	}
@@ -207,6 +234,12 @@ export class ReaderController extends Component {
 	private setZoomMode(mode: ZoomMode): void {
 		const page = this.pdf.getCurrentPage();
 		const pageCount = this.pdf.getPageCount();
+		if (
+			mode === 'fit-content' &&
+			this.readingFlow.currentMode === 'horizontal'
+		) {
+			this.setReadingFlowMode('vertical');
+		}
 		if (this.position === null) {
 			this.zoom.setMode(mode, page, pageCount);
 		} else {
@@ -214,6 +247,32 @@ export class ReaderController extends Component {
 		}
 		this.updateOverlay();
 		this.showControls();
+	}
+
+	private setReadingFlow(mode: ReadingFlow): void {
+		if (
+			mode === 'horizontal' &&
+			this.readingFlow.currentMode !== 'horizontal'
+		) {
+			const page = this.pdf.getCurrentPage();
+			const pageCount = this.pdf.getPageCount();
+			if (this.position === null) {
+				this.zoom.setMode('fit-page', page, pageCount);
+			} else {
+				this.position.setUserZoomMode('fit-page', page, pageCount);
+			}
+		}
+		this.setReadingFlowMode(mode);
+		this.updateOverlay();
+		this.showControls();
+	}
+
+	private setReadingFlowMode(mode: ReadingFlow): void {
+		if (this.position === null) {
+			this.readingFlow.setMode(mode);
+		} else {
+			this.position.setUserReadingFlow(mode);
+		}
 	}
 
 	private updateOverlay(): void {
@@ -225,6 +284,7 @@ export class ReaderController extends Component {
 			this.pdf.getCurrentPage(),
 			this.pdf.getPageCount(),
 			this.zoom.currentMode,
+			this.readingFlow.currentMode,
 			this.focusMode,
 		);
 	}

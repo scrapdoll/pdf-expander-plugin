@@ -4,6 +4,7 @@ import type {
 	NormalizedPdfRect,
 	PdfPageGeometry,
 	PdfPageRaster,
+	PdfScrollMode,
 	PdfViewerAdapter,
 } from './PdfViewerAdapter';
 
@@ -36,6 +37,12 @@ const VIEWER_SELECTOR = '.pdfViewer, .pdf-viewer';
 const HORIZONTAL_LOCK_CLASS = 'pdf-reader-horizontal-lock';
 const HORIZONTAL_OFFSET_CLASS = 'pdf-reader-horizontal-offset';
 const HORIZONTAL_OFFSET_PROPERTY = '--pdf-reader-horizontal-offset';
+const SCROLL_MODE_VALUES: Record<PdfScrollMode, number> = {
+	vertical: 0,
+	horizontal: 1,
+	wrapped: 2,
+	page: 3,
+};
 
 const SCROLL_CONTAINER_SELECTORS = [
 	'.pdf-viewer-container',
@@ -252,6 +259,49 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 
 		viewer.currentScaleValue = mode;
 		return true;
+	}
+
+	getScrollMode(): PdfScrollMode | null {
+		const viewer = this.getInternalPdfViewer();
+		const mode = viewer?.scrollMode ?? viewer?._scrollMode;
+		if (mode === SCROLL_MODE_VALUES.vertical) {
+			return 'vertical';
+		}
+		if (mode === SCROLL_MODE_VALUES.horizontal) {
+			return 'horizontal';
+		}
+		if (mode === SCROLL_MODE_VALUES.wrapped) {
+			return 'wrapped';
+		}
+		if (mode === SCROLL_MODE_VALUES.page) {
+			return 'page';
+		}
+		return null;
+	}
+
+	setScrollMode(mode: PdfScrollMode): boolean {
+		const value = SCROLL_MODE_VALUES[mode];
+		if (
+			this.dispatchViewerCommand('switchscrollmode', {
+				source: this,
+				mode: value,
+			})
+		) {
+			return true;
+		}
+
+		const viewer = this.getInternalPdfViewer();
+		if (viewer === null || !('scrollMode' in viewer)) {
+			return false;
+		}
+
+		try {
+			viewer.scrollMode = value;
+			return true;
+		} catch (error) {
+			console.debug('PDF Reader: Native scroll mode command failed', error);
+			return false;
+		}
 	}
 
 	getPageGeometry(page: number): PdfPageGeometry | null {
@@ -614,6 +664,7 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 		const addListener = eventBus?.on ?? eventBus?._on;
 		addListener?.call(eventBus, 'pagechanging', callback);
 		addListener?.call(eventBus, 'pagerendered', callback);
+		addListener?.call(eventBus, 'scrollmodechanged', callback);
 	}
 
 	private removeEventBusListener(
@@ -623,6 +674,7 @@ export class ObsidianPdfAdapter implements PdfViewerAdapter {
 		const removeListener = eventBus?.off ?? eventBus?._off;
 		removeListener?.call(eventBus, 'pagechanging', callback);
 		removeListener?.call(eventBus, 'pagerendered', callback);
+		removeListener?.call(eventBus, 'scrollmodechanged', callback);
 	}
 
 	private getToolbarPageInput(): HTMLInputElement | null {

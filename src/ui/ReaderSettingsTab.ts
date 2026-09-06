@@ -36,6 +36,22 @@ export class ReaderSettingsTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
+			.setName('Default reading flow')
+			.setDesc('Applied when a PDF has no saved document state.')
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption('vertical', 'Vertical')
+					.addOption('horizontal', 'Horizontal')
+					.setValue(this.store.settings.defaultReadingFlow)
+					.onChange((value) => {
+						this.updateSetting({
+							defaultReadingFlow:
+								value as ReaderSettings['defaultReadingFlow'],
+						});
+					});
+			});
+
+		new Setting(containerEl)
 			.setName('Auto-hide controls')
 			.setDesc('Hide the reader overlay while reading.')
 			.addToggle((toggle) => {

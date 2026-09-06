@@ -134,6 +134,30 @@ describe('ObsidianPdfAdapter private boundary', () => {
 			source: adapter,
 			value: '1.5',
 		});
+
+		expect(adapter.setScrollMode('horizontal')).toBe(true);
+		expect(dispatch).toHaveBeenCalledWith('switchscrollmode', {
+			source: adapter,
+			mode: 1,
+		});
+	});
+
+	it('reads and updates the guarded PDF.js scroll mode directly', () => {
+		const pdfViewer: Record<string, unknown> = {
+			currentPageNumber: 1,
+			scrollMode: 0,
+		};
+		const adapter = new ObsidianPdfAdapter({
+			view: {
+				containerEl: {},
+				viewer: { child: { pdfViewer: { pdfViewer } } },
+			},
+		} as unknown as WorkspaceLeaf);
+
+		expect(adapter.getScrollMode()).toBe('vertical');
+		expect(adapter.setScrollMode('horizontal')).toBe(true);
+		expect(pdfViewer.scrollMode).toBe(1);
+		expect(adapter.getScrollMode()).toBe('horizontal');
 	});
 
 	it('prefers the full PDF.js page count over virtualized page elements', () => {

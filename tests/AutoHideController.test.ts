@@ -46,6 +46,7 @@ function pointerEvent(pointerType: string): PointerEvent {
 function settings(autoHideControls: boolean): ReaderSettings {
 	return {
 		defaultZoomMode: 'native',
+		defaultReadingFlow: 'vertical',
 		autoHideControls,
 		autoHideDelayMs: 2200,
 		rememberPosition: true,

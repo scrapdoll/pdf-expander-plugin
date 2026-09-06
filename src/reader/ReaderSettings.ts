@@ -5,8 +5,11 @@ export type ZoomMode =
 	| 'fit-content'
 	| 'custom';
 
+export type ReadingFlow = 'vertical' | 'horizontal';
+
 export interface ReaderSettings {
 	defaultZoomMode: Exclude<ZoomMode, 'custom'>;
+	defaultReadingFlow: ReadingFlow;
 	autoHideControls: boolean;
 	autoHideDelayMs: number;
 	rememberPosition: boolean;
@@ -17,6 +20,7 @@ export interface ReaderSettings {
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
 	defaultZoomMode: 'native',
+	defaultReadingFlow: 'vertical',
 	autoHideControls: true,
 	autoHideDelayMs: 2200,
 	rememberPosition: true,
@@ -52,6 +56,9 @@ export function normalizeReaderSettings(value: unknown): ReaderSettings {
 
 	return {
 		defaultZoomMode,
+		defaultReadingFlow: isReadingFlow(source.defaultReadingFlow)
+			? source.defaultReadingFlow
+			: DEFAULT_SETTINGS.defaultReadingFlow,
 		autoHideControls: booleanOrDefault(
 			source.autoHideControls,
 			DEFAULT_SETTINGS.autoHideControls,
@@ -79,6 +86,10 @@ export function normalizeReaderSettings(value: unknown): ReaderSettings {
 			DEFAULT_SETTINGS.enableKeyboardNavigation,
 		),
 	};
+}
+
+export function isReadingFlow(value: unknown): value is ReadingFlow {
+	return value === 'vertical' || value === 'horizontal';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

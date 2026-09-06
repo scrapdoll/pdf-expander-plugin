@@ -44,6 +44,33 @@ export function registerReaderCommands(
 	addReaderCommand(
 		plugin,
 		workspaceController,
+		'toggle-horizontal-reading',
+		'Toggle horizontal reading',
+		(reader) => {
+			reader.toggleHorizontalReading();
+		},
+	);
+	addReaderCommand(
+		plugin,
+		workspaceController,
+		'use-vertical-reading',
+		'Use vertical reading',
+		(reader) => {
+			reader.setVerticalReading();
+		},
+	);
+	addReaderCommand(
+		plugin,
+		workspaceController,
+		'use-horizontal-reading',
+		'Use horizontal reading',
+		(reader) => {
+			reader.setHorizontalReading();
+		},
+	);
+	addReaderCommand(
+		plugin,
+		workspaceController,
 		'use-native-zoom',
 		'Use native zoom',
 		(reader) => {

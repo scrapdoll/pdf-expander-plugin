@@ -1,4 +1,9 @@
 export type NativePdfZoomMode = 'page-width' | 'page-height' | 'page-fit';
+export type PdfScrollMode =
+	| 'vertical'
+	| 'horizontal'
+	| 'wrapped'
+	| 'page';
 
 export interface NormalizedPdfRect {
 	left: number;
@@ -32,6 +37,8 @@ export interface PdfViewerAdapter {
 	getZoom(): number | null;
 	setZoom(value: number): void;
 	setNativeZoomMode(mode: NativePdfZoomMode): boolean;
+	getScrollMode(): PdfScrollMode | null;
+	setScrollMode(mode: PdfScrollMode): boolean;
 
 	getPageGeometry(page: number): PdfPageGeometry | null;
 	getPageRaster(page: number, maxDimension: number): PdfPageRaster | null;

@@ -143,8 +143,25 @@
 	translate: var(--pdf-reader-horizontal-offset, 0) 0;
 }
 
+.pdf-reader-horizontal-reading .pdf-viewer-container {
+	overscroll-behavior-x: contain;
+	scroll-behavior: smooth;
+	scroll-snap-type: x mandatory;
+}
+
+.pdf-reader-horizontal-reading
+	.pdfViewer.scrollHorizontal
+	.page[data-page-number] {
+	scroll-snap-align: center;
+	scroll-snap-stop: always;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.pdf-reader-overlay {
 		transition: none;
+	}
+
+	.pdf-reader-horizontal-reading .pdf-viewer-container {
+		scroll-behavior: auto;
 	}
 }

@@ -14,7 +14,10 @@ It does not replace the renderer, modify PDF files, or use a separate database.
 - Mobile tap zones and conflict-aware horizontal swipes. Text selection,
   links, native controls, and pinch zoom take priority; Fit Content locks
   horizontal panning so the page stays fixed while reading.
-- Debounced per-document page, page-offset, zoom-mode, and crop-profile state.
+- EPUB-like horizontal reading through PDF.js' native horizontal scroll mode,
+  with page snapping, touch scrolling, and reduced-motion support.
+- Debounced per-document page, page-offset, zoom-mode, reading-flow, and
+  crop-profile state.
 - Standard Obsidian links to a PDF or its current `#page=N` subpath.
 - Native Fit Page and Fit Width modes.
 - Lazy Fit Content / Smart Crop based on downsampled pixels from canvases that
@@ -34,8 +37,8 @@ gracefully falls back to Fit Width and normal PDF reading remains available.
 - Reader features depend on `PdfViewerAdapter`. All native PDF selectors,
   PDF.js fields, and the guarded private path used by Obsidian 1.13 are isolated
   in `ObsidianPdfAdapter`.
-- Navigation, auto-hide, position restore, zoom, and Smart Crop are separate
-  feature modules.
+- Navigation, reading flow, auto-hide, position restore, zoom, and Smart Crop
+  are separate feature modules.
 - `ReaderDataStore` normalizes untrusted plugin data and persists it with
   `loadData()` / `saveData()` using a debounce.
 
@@ -45,6 +48,9 @@ gracefully falls back to Fit Width and normal PDF reading remains available.
 - **Previous page**
 - **Toggle reader controls**
 - **Toggle focus mode**
+- **Toggle horizontal reading**
+- **Use vertical reading**
+- **Use horizontal reading**
 - **Use native zoom**
 - **Fit page**
 - **Fit width**
@@ -129,10 +135,14 @@ After reloading Obsidian:
    navigation while also checking text selection and PDF links.
 3. Test Fit Page, Fit Width, and Fit Content on PDFs with normal, mirrored
    odd/even, and unusually large margins.
-4. Open `[[Book.pdf#page=137]]` and confirm the explicit page wins over a saved
+4. Switch to horizontal reading and confirm touch/trackpad scrolling snaps one
+   page at a time, page controls remain synchronized, and reopening the PDF
+   restores the reading flow. Selecting Fit Content should return to vertical
+   reading because it uses the horizontal axis for content alignment.
+5. Open `[[Book.pdf#page=137]]` and confirm the explicit page wins over a saved
    position.
-5. Close one PDF leaf and disable the plugin; confirm injected controls and
+6. Close one PDF leaf and disable the plugin; confirm injected controls and
    focus-mode classes are removed.
-6. Repeat the mobile checks in portrait and landscape. Verify pinch zoom and
+7. Repeat the mobile checks in portrait and landscape. Verify pinch zoom and
    vertical scrolling in Fit Content, and verify horizontal swipes navigate
    pages without horizontal drift.

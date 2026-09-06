@@ -40,6 +40,7 @@ describe('persisted reader data normalization', () => {
 		});
 
 		expect(settings.defaultZoomMode).toBe('native');
+		expect(settings.defaultReadingFlow).toBe('vertical');
 		expect(settings.autoHideControls).toBe(false);
 		expect(settings.autoHideDelayMs).toBe(10_000);
 	});
@@ -58,7 +59,18 @@ describe('persisted reader data normalization', () => {
 		expect(state?.page).toBe(12);
 		expect(state?.pageOffset).toBe(1);
 		expect(state?.zoomMode).toBe('fit-content');
+		expect(state?.readingFlow).toBe('vertical');
 		expect(state?.cropProfile?.odd).toHaveLength(1);
+	});
+
+	it('keeps valid persisted reading flow values', () => {
+		expect(
+			normalizeDocumentReadingState({
+				page: 2,
+				zoomMode: 'fit-page',
+				readingFlow: 'horizontal',
+			})?.readingFlow,
+		).toBe('horizontal');
 	});
 
 	it('rejects states without a valid page', () => {

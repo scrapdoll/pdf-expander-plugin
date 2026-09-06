@@ -2,12 +2,18 @@ import {
 	normalizeCropProfile,
 	type SerializedCropProfile,
 } from '../features/smart-crop/CropProfile';
-import { isZoomMode, type ZoomMode } from './ReaderSettings';
+import {
+	isReadingFlow,
+	isZoomMode,
+	type ReadingFlow,
+	type ZoomMode,
+} from './ReaderSettings';
 
 export interface DocumentReadingState {
 	page: number;
 	pageOffset?: number;
 	zoomMode: ZoomMode;
+	readingFlow: ReadingFlow;
 	customZoom?: number;
 	cropProfile?: SerializedCropProfile;
 }
@@ -25,7 +31,10 @@ export function normalizeDocumentReadingState(
 		return null;
 	}
 
-	const state: DocumentReadingState = { page, zoomMode };
+	const readingFlow = isReadingFlow(value.readingFlow)
+		? value.readingFlow
+		: 'vertical';
+	const state: DocumentReadingState = { page, zoomMode, readingFlow };
 	if (
 		typeof value.pageOffset === 'number' &&
 		Number.isFinite(value.pageOffset)

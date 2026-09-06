@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReadingPositionController } from '../src/features/restore-position/ReadingPositionController';
+import type { ReadingFlowController } from '../src/features/navigation/ReadingFlowController';
 import type { ZoomController } from '../src/features/zoom/ZoomController';
 import type { PdfViewerAdapter } from '../src/pdf/PdfViewerAdapter';
 import type { ReaderDataStore } from '../src/reader/ReaderDataStore';
@@ -19,8 +20,9 @@ describe('ReadingPositionController zoom restoration', () => {
 		const controller = new ReadingPositionController(
 			pdfAdapter(),
 			zoom,
+			flowController(),
 			store(
-				{ page: 3, zoomMode: 'native' },
+				{ page: 3, zoomMode: 'native', readingFlow: 'vertical' },
 				updateDocumentState,
 			),
 			'Books/example.pdf',
@@ -55,7 +57,11 @@ describe('ReadingPositionController zoom restoration', () => {
 		const controller = new ReadingPositionController(
 			pdfAdapter(),
 			zoom,
-			store({ page: 3, zoomMode: 'fit-page' }, vi.fn()),
+			flowController(),
+			store(
+				{ page: 3, zoomMode: 'fit-page', readingFlow: 'vertical' },
+				vi.fn(),
+			),
 			'Books/example.pdf',
 			() => null,
 		);
@@ -64,7 +70,39 @@ describe('ReadingPositionController zoom restoration', () => {
 
 		expect(setMode).toHaveBeenCalledWith('fit-page', 3, 10, undefined);
 	});
+
+	it('restores horizontal reading and replaces incompatible fit content', () => {
+		const setZoomMode = vi.fn();
+		const setReadingFlow = vi.fn();
+		const zoom = { setMode: setZoomMode } as unknown as ZoomController;
+		const controller = new ReadingPositionController(
+			pdfAdapter(),
+			zoom,
+			flowController(setReadingFlow),
+			store(
+				{ page: 3, zoomMode: 'fit-content', readingFlow: 'horizontal' },
+				vi.fn(),
+			),
+			'Books/example.pdf',
+			() => null,
+		);
+
+		controller.restore();
+
+		expect(setReadingFlow).toHaveBeenCalledWith('horizontal');
+		expect(setZoomMode).toHaveBeenCalledWith('fit-page', 3, 10, undefined);
+	});
 });
+
+function flowController(
+	setMode: ReturnType<typeof vi.fn> = vi.fn(),
+): ReadingFlowController {
+	return {
+		currentMode: 'vertical',
+		setMode,
+		apply: vi.fn(),
+	} as unknown as ReadingFlowController;
+}
 
 function pdfAdapter(): PdfViewerAdapter {
 	const ownerWindow = {
@@ -87,6 +125,7 @@ function store(
 ): ReaderDataStore {
 	const settings: ReaderSettings = {
 		defaultZoomMode: 'native',
+		defaultReadingFlow: 'vertical',
 		autoHideControls: true,
 		autoHideDelayMs: 2200,
 		rememberPosition: true,

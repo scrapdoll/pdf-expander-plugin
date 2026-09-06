@@ -1,6 +1,7 @@
 import type { PdfViewerAdapter } from '../../pdf/PdfViewerAdapter';
 import type { ReaderDataStore } from '../../reader/ReaderDataStore';
-import type { ZoomMode } from '../../reader/ReaderSettings';
+import type { ReadingFlow, ZoomMode } from '../../reader/ReaderSettings';
+import type { ReadingFlowController } from '../navigation/ReadingFlowController';
 import type { ZoomController } from '../zoom/ZoomController';
 
 interface PendingPositionRestore {
@@ -22,10 +23,12 @@ export class ReadingPositionController {
 	private restoreFrame: number | null = null;
 	private pendingRestore: PendingPositionRestore | null = null;
 	private pendingZoomOverride: PendingZoomOverride | null = null;
+	private pendingReadingFlowOverride: ReadingFlow | null = null;
 
 	constructor(
 		private readonly pdf: PdfViewerAdapter,
 		private readonly zoom: ZoomController,
+		private readonly readingFlow: ReadingFlowController,
 		private readonly store: ReaderDataStore,
 		private readonly documentPath: string,
 		private readonly getExplicitPage: () => number | null,
@@ -52,6 +55,14 @@ export class ReadingPositionController {
 		this.scheduleSave();
 	}
 
+	setUserReadingFlow(mode: ReadingFlow): void {
+		if (!this.restored) {
+			this.pendingReadingFlowOverride = mode;
+		}
+		this.readingFlow.setMode(mode);
+		this.scheduleSave();
+	}
+
 	handlePositionChange(page: number): void {
 		if (!this.restored) {
 			this.restore();
@@ -62,6 +73,7 @@ export class ReadingPositionController {
 			this.lastPage = page;
 			this.zoom.apply(page, this.pdf.getPageCount());
 		}
+		this.readingFlow.apply();
 		this.tryRestorePageOffset();
 		this.scheduleSave();
 	}
@@ -78,10 +90,20 @@ export class ReadingPositionController {
 			: null;
 		const pendingZoomOverride = this.pendingZoomOverride;
 		this.pendingZoomOverride = null;
-		const mode =
+		const pendingReadingFlowOverride = this.pendingReadingFlowOverride;
+		this.pendingReadingFlowOverride = null;
+		const readingFlow =
+			pendingReadingFlowOverride ??
+			savedState?.readingFlow ??
+			this.store.settings.defaultReadingFlow;
+		const requestedZoomMode =
 			pendingZoomOverride?.mode ??
 			savedState?.zoomMode ??
 			this.store.settings.defaultZoomMode;
+		const mode =
+			readingFlow === 'horizontal' && requestedZoomMode === 'fit-content'
+				? 'fit-page'
+				: requestedZoomMode;
 		const customZoom =
 			pendingZoomOverride === null
 				? savedState?.customZoom
@@ -102,6 +124,7 @@ export class ReadingPositionController {
 		}
 
 		this.lastPage = currentPage;
+		this.readingFlow.setMode(readingFlow);
 		this.zoom.setMode(mode, targetPage, pageCount, customZoom);
 		this.tryRestorePageOffset();
 		if (pendingZoomOverride !== null) {
@@ -137,6 +160,7 @@ export class ReadingPositionController {
 			page,
 			...(pageOffset === null ? {} : { pageOffset }),
 			zoomMode: this.zoom.currentMode,
+			readingFlow: this.readingFlow.currentMode,
 			...(customZoom === undefined ? {} : { customZoom }),
 			cropProfile: this.zoom.serializeCropProfile(),
 		});

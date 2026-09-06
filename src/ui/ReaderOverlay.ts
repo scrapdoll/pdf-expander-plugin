@@ -1,5 +1,5 @@
 import { Menu, setIcon } from 'obsidian';
-import type { ZoomMode } from '../reader/ReaderSettings';
+import type { ReadingFlow, ZoomMode } from '../reader/ReaderSettings';
 import { connectOverlay } from './OverlayHost';
 
 export interface ReaderOverlayActions {
@@ -8,6 +8,8 @@ export interface ReaderOverlayActions {
 	onFitPage(): void;
 	onFitWidth(): void;
 	onFitContent(): void;
+	onSetVerticalReading(): void;
+	onSetHorizontalReading(): void;
 	onToggleFocus(): void;
 	onInteractionChange(active: boolean): void;
 }
@@ -25,6 +27,7 @@ export class ReaderOverlay {
 	private scrubFrame: number | null = null;
 	private activeMenu: Menu | null = null;
 	private currentMode: ZoomMode = 'native';
+	private currentReadingFlow: ReadingFlow = 'vertical';
 	private focusMode = false;
 
 	constructor(
@@ -124,12 +127,14 @@ export class ReaderOverlay {
 		page: number,
 		pageCount: number,
 		mode: ZoomMode,
+		readingFlow: ReadingFlow,
 		focusMode: boolean,
 	): void {
 		// Obsidian can rebuild the native PDF view after file-open and remove
 		// injected children. Reconnect the existing overlay when that happens.
 		this.attach();
 		this.currentMode = mode;
+		this.currentReadingFlow = readingFlow;
 		this.focusMode = focusMode;
 		if (this.pageElement !== null) {
 			this.pageElement.textContent =
@@ -152,7 +157,10 @@ export class ReaderOverlay {
 			);
 		}
 
-		this.menuButton?.classList.toggle('is-active', mode !== 'native');
+		this.menuButton?.classList.toggle(
+			'is-active',
+			mode !== 'native' || readingFlow !== 'vertical',
+		);
 	}
 
 	setVisible(visible: boolean): void {
@@ -171,6 +179,7 @@ export class ReaderOverlay {
 		this.container.classList.remove(
 			'pdf-reader-enhanced',
 			'pdf-reader-focus-mode',
+			'pdf-reader-horizontal-reading',
 		);
 		this.rootElement = null;
 		this.pageElement = null;
@@ -280,6 +289,21 @@ export class ReaderOverlay {
 					.setIcon('scan')
 					.setChecked(this.currentMode === 'fit-content')
 					.onClick(() => this.actions.onFitContent());
+			})
+			.addSeparator()
+			.addItem((item) => {
+				item
+					.setTitle('Vertical reading')
+					.setIcon('rows-3')
+					.setChecked(this.currentReadingFlow === 'vertical')
+					.onClick(() => this.actions.onSetVerticalReading());
+			})
+			.addItem((item) => {
+				item
+					.setTitle('Horizontal reading')
+					.setIcon('columns-3')
+					.setChecked(this.currentReadingFlow === 'horizontal')
+					.onClick(() => this.actions.onSetHorizontalReading());
 			})
 			.addSeparator()
 			.addItem((item) => {
